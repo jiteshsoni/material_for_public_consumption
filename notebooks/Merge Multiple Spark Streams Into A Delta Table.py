@@ -32,7 +32,7 @@ generated_streaming_usa_df = (
         )
 )
 
-#display(generated_steaming_usa_df)
+#display(generated_streaming_usa_df)
 
 # COMMAND ----------
 
@@ -234,3 +234,7 @@ display(
   .option("readChangeFeed", "true") 
   .table(target_table_name)
 )
+
+# COMMAND ----------
+
+
