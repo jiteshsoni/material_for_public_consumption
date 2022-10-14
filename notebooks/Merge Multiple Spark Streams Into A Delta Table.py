@@ -62,7 +62,7 @@ generated_streaming_canada_df = (
 
 #spark.sql(f"""  DROP TABLE IF EXISTS {target_table_name};""")
 (  
-  generated_steaming_usa_df.writeStream
+  generated_streaming_usa_df.writeStream
   .partitionBy(partition_column)
   .format("delta")
   .outputMode("append").trigger(once=True)
@@ -155,7 +155,7 @@ def make_changes_using_the_micro_batch(microBatchOutputDF, batchId: int):
 # COMMAND ----------
 
 (
-  generated_steaming_usa_df
+  generated_streaming_usa_df
  .writeStream.format('delta')
  .trigger(processingTime='10 seconds')
  .option("checkpointLocation", check_point_location_for_usa_stream)
@@ -172,7 +172,7 @@ def make_changes_using_the_micro_batch(microBatchOutputDF, batchId: int):
 # COMMAND ----------
 
 (
-  generated_steaming_canada_df
+  generated_streaming_canada_df
  .writeStream.format('delta')
  #.trigger(availableNow=True) 
  .trigger(processingTime='10 seconds')
