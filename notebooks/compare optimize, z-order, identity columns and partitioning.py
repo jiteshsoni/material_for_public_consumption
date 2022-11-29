@@ -9,9 +9,9 @@
 # MAGIC ## What is the demo about ?
 # MAGIC 
 # MAGIC #### Show performance difference between
-# MAGIC 1.) compacting small files (optimize)    
+# MAGIC 1.) Compacting small files (optimize)    
 # MAGIC 2.) Compatcing the files and  sorting/colocating the data in files ( Optimize and Z-order )    
-# MAGIC 3.) Partition the data and Compatcing the files and  sorting/colocating the data in files ( Partitioning and Optimize and Z-order )
+# MAGIC 3.) Partition the data and Compatcing the files and  sorting/colocating the data in files ( Partitioning, Optimize and Z-order )
 
 # COMMAND ----------
 
@@ -74,6 +74,8 @@ dbutils.widgets.removeAll()
 
 # MAGIC %md
 # MAGIC ### Generate data
+# MAGIC 
+# MAGIC The longer your run this the more data this will generate
 
 # COMMAND ----------
 
@@ -99,6 +101,11 @@ dbutils.widgets.removeAll()
 # MAGIC       .saveAsTable("data_layout_demo")
 # MAGIC   }
 # MAGIC }
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Let's have a look at table size and number of files
 
 # COMMAND ----------
 
@@ -190,6 +197,10 @@ clear_all_cache()
 
 # COMMAND ----------
 
+clear_all_cache()
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC SELECT * 
 # MAGIC FROM non_zorder_but_partitioned 
@@ -213,10 +224,18 @@ clear_all_cache()
 
 # COMMAND ----------
 
+clear_all_cache()
+
+# COMMAND ----------
+
 # MAGIC %sql
 # MAGIC SELECT * 
 # MAGIC from zorder_default_but_partitioned 
 # MAGIC WHERE identity=1000
+
+# COMMAND ----------
+
+clear_all_cache()
 
 # COMMAND ----------
 
@@ -225,6 +244,39 @@ clear_all_cache()
 # MAGIC from zorder_default_but_partitioned 
 # MAGIC WHERE identity=1000
 # MAGIC   and partition_number = 1
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TABLE zorder_by_id_but_partitioned SHALLOW CLONE `${delta_table_name}`
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC OPTIMIZE zorder_by_id_but_partitioned ZORDER BY id
+
+# COMMAND ----------
+
+clear_all_cache()
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * 
+# MAGIC from zorder_by_id_but_partitioned 
+# MAGIC WHERE id=1000
+# MAGIC   and partition_number = 1
+
+# COMMAND ----------
+
+clear_all_cache()
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * 
+# MAGIC FROM zorder_on_identity_and_id_column 
+# MAGIC WHERE id =1000 and partition_number = 1 
 
 # COMMAND ----------
 
@@ -261,7 +313,7 @@ spark.read.format("delta").table("zorder_on_id_column").write.mode("overwrite").
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DEsc detail zorder_on_identity_column
+# MAGIC DESC detail zorder_on_identity_column
 
 # COMMAND ----------
 
@@ -273,7 +325,7 @@ spark.read.format("delta").table("zorder_on_id_column").write.mode("overwrite").
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DEsc detail zorder_on_identity_and_id_column
+# MAGIC DESC detail zorder_on_identity_and_id_column
 
 # COMMAND ----------
 
