@@ -6,14 +6,15 @@
 # COMMAND ----------
 
 from pyspark.sql import SparkSession
+
 spark = SparkSession.getActiveSession()
 
 # COMMAND ----------
 
 # DBTITLE 1,The function is defined with try and except block so that it can work with Notebook as well, where we cannot pass the parameter value  from The DLT pipeline
-def get_parameter_or_return_default(default_value: str)-> str:
+def get_parameter_or_return_default(default_value: str) -> str:
     try:
-        parameter= spark.conf.get("pipeline.parameter_name")
+        parameter = spark.conf.get("pipeline.parameter_name")
     except Exception:
         parameter = default_value
     return parameter
