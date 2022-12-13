@@ -12,17 +12,86 @@ spark = SparkSession.getActiveSession()
 # COMMAND ----------
 
 # DBTITLE 1,The function is defined with try and except block so that it can work with Notebook as well, where we cannot pass the parameter value  from The DLT pipeline
-def get_parameter_or_return_default(default_value: str) -> str:
+def get_parameter_or_return_default(
+    parameter_name: str = "pipeline.parameter_blah_blah",
+    default_value: str = "default_value",
+) -> str:
     try:
-        parameter = spark.conf.get("pipeline.parameter_name")
+        parameter = spark.conf.get(parameter_name)
     except Exception:
         parameter = default_value
     return parameter
 
 # COMMAND ----------
 
-parameter_1 = get_parameter_or_return_default(default_value="test1")
+parameter_which_specifies_path_for_file_with_functions_defined = get_parameter_or_return_default(
+    parameter_name="pipeline.path_to_reusable_functions",
+    default_value="/Workspace/Repos/jitesh.soni@databricks.com/material_for_public_consumption/",
+)
 
 # COMMAND ----------
 
-parameter_1 = get_parameter_or_return_default(default_value="random_default_value")
+parameter_with_passed_value = get_parameter_or_return_default(
+    parameter_name="pipeline.parameter_abc", default_value="random_default_value"
+)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Import the functions defined in the Python file
+
+# COMMAND ----------
+
+import sys
+
+# Add the path so functions could be imported
+sys.path.append(parameter_which_specifies_path_for_file_with_functions_defined)
+
+# Attempt the import
+from reusable_functions import append_ingestion_columns, logger
+
+# COMMAND ----------
+
+print(
+    f"parameter_which_specifies_path_for_file_with_functions_defined : {parameter_which_specifies_path_for_file_with_functions_defined}"
+)
+print(f"parameter_with_passed_value : {parameter_with_passed_value}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Define function to return Dataframe
+
+# COMMAND ----------
+
+def static_dataframe():
+    df_which_we_got_back_after_running_sql = spark.sql(
+        f"""
+            SELECT 
+                '{parameter_with_passed_value}' as parameter_with_passed_value
+                ,'{parameter_which_specifies_path_for_file_with_functions_defined}' as parameter_which_specifies_path_for_file_with_functions_defined
+        """
+    )
+    return append_ingestion_columns(df_which_we_got_back_after_running_sql)
+
+
+# display(static_dataframe())
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Define a DLT Table
+
+# COMMAND ----------
+
+import dlt
+
+# COMMAND ----------
+
+@dlt.table(name="static_table", comment="Static table")
+def dlt_static_table():
+    return static_dataframe()
+
+# COMMAND ----------
+
+
