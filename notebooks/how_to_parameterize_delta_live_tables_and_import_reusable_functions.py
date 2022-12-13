@@ -24,16 +24,23 @@ def get_parameter_or_return_default(
 
 # COMMAND ----------
 
-parameter_which_specifies_path_for_file_with_functions_defined = get_parameter_or_return_default(
+path_to_reusable_functions = get_parameter_or_return_default(
     parameter_name="pipeline.path_to_reusable_functions",
     default_value="/Workspace/Repos/jitesh.soni@databricks.com/material_for_public_consumption/",
 )
 
 # COMMAND ----------
 
-parameter_with_passed_value = get_parameter_or_return_default(
+parameter_abc = get_parameter_or_return_default(
     parameter_name="pipeline.parameter_abc", default_value="random_default_value"
 )
+
+# COMMAND ----------
+
+print(
+    f"parameter_which_specifies_path_for_file_with_functions_defined : {path_to_reusable_functions}"
+)
+print(f"parameter_abc : {parameter_abc}")
 
 # COMMAND ----------
 
@@ -45,22 +52,15 @@ parameter_with_passed_value = get_parameter_or_return_default(
 import sys
 
 # Add the path so functions could be imported
-sys.path.append(parameter_which_specifies_path_for_file_with_functions_defined)
+sys.path.append(path_to_reusable_functions)
 
 # Attempt the import
-from reusable_functions import append_ingestion_columns, logger
-
-# COMMAND ----------
-
-print(
-    f"parameter_which_specifies_path_for_file_with_functions_defined : {parameter_which_specifies_path_for_file_with_functions_defined}"
-)
-print(f"parameter_with_passed_value : {parameter_with_passed_value}")
+from reusable_functions import append_ingestion_columns
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Define function to return Dataframe
+# MAGIC ## Define function to return DataFrame
 
 # COMMAND ----------
 
@@ -68,14 +68,14 @@ def static_dataframe():
     df_which_we_got_back_after_running_sql = spark.sql(
         f"""
             SELECT 
-                '{parameter_with_passed_value}' as parameter_with_passed_value
-                ,'{parameter_which_specifies_path_for_file_with_functions_defined}' as parameter_which_specifies_path_for_file_with_functions_defined
+                '{path_to_reusable_functions}' as path_to_reusable_functions
+                ,'{parameter_abc}' as parameter_abc
         """
     )
     return append_ingestion_columns(df_which_we_got_back_after_running_sql)
 
 
-# display(static_dataframe())
+#display(static_dataframe())
 
 # COMMAND ----------
 
