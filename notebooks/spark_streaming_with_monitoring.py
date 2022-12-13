@@ -1,24 +1,18 @@
 # Databricks notebook source
 from pyspark.sql.streaming import StreamingQueryListener
 
-# Define my listener.
-class MyListener(StreamingQueryListener):
+# This class will write data to event hub(kafka). However, you can make this class write to any place you want
+class my_steaming_listener(StreamingQueryListener):
     def onQueryStarted(self, event):
         print(f"'{event.name}' [{event.id}] got started!")
     def onQueryProgress(self, event):
-        #row = event.progress.observedMetrics.get("metric")
-        #query_progress.query_progressprogress.observedMetrics.get("metric")
-        row = event.progress.observedMetrics.get("metric")
-        print(f"row: {str(row)}")
-        print(str(event.progress.json))
-        #row = event.progress.observedMetrics.get("metric")
-        #print(f"{str(event)} got started!")
+        print(f" (event.progress.json {str(event.progress.json)}")
     def onQueryTerminated(self, event):
         print(f"{event.id} got terminated!")
 
 
 # Add my listener.
-my_listener = MyListener()
+my_listener = my_steaming_listener()
 spark.streams.addListener(my_listener)
 
 # COMMAND ----------
