@@ -508,6 +508,18 @@ stream_write_to_vehicle_geo_table(rowsPerSecond = 10, numPartitions = 10)
 
 # COMMAND ----------
 
+# MAGIC %md 
+# MAGIC Send a batch of data is written and kill the above Stream. What to observe:
+# MAGIC 1. Soon you should see the watermark moves ahead and number of records in 'Aggregation State' goes down. 
+# MAGIC 2. If you click on the running stream and click the raw data tab and look for "watermark". You would see it has advanced
+# MAGIC 3. Once 0 records per seconds are being processed that means your stream has caught up and now your row count should match up with the traditional SQL left join
+
+# COMMAND ----------
+
+spark.read.table(f"{schema_name}.{table_name_stream_stream_left_join}").count()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Clean up the databse which was created
 
