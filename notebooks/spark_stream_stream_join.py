@@ -1,5 +1,16 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC [You can enable RockDB-based state management by setting the following configuration in the SparkSession before starting the streaming query](https://docs.databricks.com/structured-streaming/rocksdb-state-store.html#configure-rocksdb-state-store-on-databricks)
+
+# COMMAND ----------
+
+spark.conf.set(
+  "spark.sql.streaming.stateStore.providerClass",
+  "com.databricks.sql.streaming.state.RocksDBStateStoreProvider")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Install Libraries
 # MAGIC Install Faker which is only needed for the purope of this demo.
 
@@ -126,11 +137,10 @@ def generated_vehicle_and_geo_df(rowsPerSecond: int, numPartitions: int):
 
 # COMMAND ----------
 
-
+table_name_vehicle_geo = "vehicle_geo"
 def stream_write_to_vehicle_geo_table(
     rowsPerSecond: int = 1000, numPartitions: int = 10
 ):
-    table_name_vehicle_geo = "vehicle_geo"
     (
         generated_vehicle_and_geo_df(rowsPerSecond, numPartitions)
         .writeStream.queryName(f"write_to_delta_table: {table_name_vehicle_geo}")
@@ -213,9 +223,8 @@ vehicle_df = (
 
 # COMMAND ----------
 
-
+table_name_vehicle = "vehicle"
 def stream_write_to_vehicle_table():
-    table_name_vehicle = "vehicle"
     (
         vehicle_df.writeStream
         # .trigger(availableNow=True)
@@ -236,7 +245,7 @@ stream_write_to_vehicle_table()
 # MAGIC %md
 # MAGIC #### Create a Geo Table
 # MAGIC We have added a filter when we write to this table. This would be useful when we emulate the left join scenario.
-# MAGIC
+# MAGIC 
 # MAGIC Filter:  ```where("value like '1%' ")```
 
 # COMMAND ----------
@@ -262,9 +271,9 @@ geo_df = (
 
 # COMMAND ----------
 
-
+table_name_geo = "geo"
 def stream_write_to_geo_table():
-    table_name_geo = "geo"
+    
     (
         geo_df.writeStream
         # .trigger(availableNow=True)
@@ -316,7 +325,7 @@ sql_query_batch_inner_join = f"""
         FROM {schema_name}.{table_name_vehicle} vehicle
         JOIN {schema_name}.{table_name_geo} geo
         ON vehicle.event_id = geo.event_id
-    AND vehicle_timestamp >= geo_timestamp  - INTERVAL 5 MINUTES        
+        AND vehicle_timestamp BETWEEN geo_timestamp  - INTERVAL 5 MINUTES AND geo_timestamp
         """
 print(
     f""" Run SQL Query: 
@@ -334,8 +343,8 @@ sql_query_batch_left_join = f"""
         FROM {schema_name}.{table_name_vehicle} vehicle
         LEFT JOIN {schema_name}.{table_name_geo} geo
         ON vehicle.event_id = geo.event_id
-            -- Assume there is a business logic that timestamp cannot be more than 15 minutes off
-    AND vehicle_timestamp >= geo_timestamp  - INTERVAL 5 MINUTES
+            -- Assume there is a business logic that timestamp cannot be more than X minutes off
+        AND vehicle_timestamp BETWEEN geo_timestamp  - INTERVAL 5 MINUTES AND geo_timestamp
         """
 print(
     f""" Run SQL Query: 
@@ -489,7 +498,7 @@ sql_for_stream_stream_inner_join = f"""
     JOIN _streaming_vw_test_streaming_joins_geo geo
     ON vehicle.event_id = geo.event_id
     -- Assume there is a business logic that timestamp cannot be more than X minutes off
-    AND vehicle_timestamp >= geo_timestamp - INTERVAL 5 minutes
+    AND vehicle_timestamp BETWEEN geo_timestamp  - INTERVAL 5 MINUTES AND geo_timestamp
 """
 # display(spark.sql(sql_for_stream_stream_inner_join))
 
@@ -499,7 +508,7 @@ sql_for_stream_stream_inner_join = f"""
 table_name_stream_stream_innner_join = "stream_stream_innner_join"
 
 (
-    spark.sql(sql_for_inner_join)
+    spark.sql(sql_for_stream_stream_inner_join)
     .writeStream
     # .trigger(availableNow=True)
     .queryName(f"write_to_delta_table: {table_name_stream_stream_innner_join}")
@@ -536,7 +545,7 @@ sql_for_stream_stream_left_join = f"""
     FROM _streaming_vw_test_streaming_joins_vehicle vehicle
     LEFT JOIN _streaming_vw_test_streaming_joins_geo geo
     ON vehicle.event_id = geo.event_id
-    AND vehicle_timestamp >= geo_timestamp  - INTERVAL 5 MINUTES
+        AND vehicle_timestamp BETWEEN geo_timestamp  - INTERVAL 5 MINUTES AND geo_timestamp
 """
 # display(spark.sql(sql_for_stream_stream_left_join))
 
@@ -565,9 +574,9 @@ spark.read.table(f"{schema_name}.{table_name_stream_stream_left_join}").count()
 
 # MAGIC %md
 # MAGIC ##### You will find that some records could not match are not being released which is expected.
-# MAGIC
+# MAGIC 
 # MAGIC [The outer NULL results will be generated with a delay that depends on the specified watermark delay and the time range condition. This is because the engine has to wait for that long to ensure there were no matches and there will be no more matches in future.](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#outer-joins-with-watermarking)
-# MAGIC
+# MAGIC 
 # MAGIC **Watermark will advance once new data is pushed to it**
 
 # COMMAND ----------
@@ -613,3 +622,5 @@ dbutils.fs.ls(schema_storage_location)
 # MAGIC show tables in test_streaming_joins
 
 # COMMAND ----------
+
+
