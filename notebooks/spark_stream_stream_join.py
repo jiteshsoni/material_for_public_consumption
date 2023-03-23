@@ -1,7 +1,7 @@
 # Databricks notebook source
-# MAGIC %md 
+# MAGIC %md
 # MAGIC ## Install Libraries
-# MAGIC Install Faker which is only needed for the purope of this demo. 
+# MAGIC Install Faker which is only needed for the purope of this demo.
 
 # COMMAND ----------
 
@@ -92,7 +92,8 @@ zipcode = F.udf(fake.zipcode)
 
 # COMMAND ----------
 
-def generated_vehicle_and_geo_df (rowsPerSecond:int , numPartitions :int ):
+
+def generated_vehicle_and_geo_df(rowsPerSecond: int, numPartitions: int):
     return (
         spark.readStream.format("rate")
         .option("numPartitions", numPartitions)
@@ -111,10 +112,11 @@ def generated_vehicle_and_geo_df (rowsPerSecond:int , numPartitions :int ):
         .withColumn("location_on_land", location_on_land())
         .withColumn("local_latlng", local_latlng())
         .withColumn("zipcode", zipcode())
-        )
+    )
+
 
 # You can uncomment the below display command to check if the code in this cell works
-#display(generated_vehicle_and_geo_df)
+# display(generated_vehicle_and_geo_df)
 
 
 # COMMAND ----------
@@ -124,22 +126,26 @@ def generated_vehicle_and_geo_df (rowsPerSecond:int , numPartitions :int ):
 
 # COMMAND ----------
 
-def stream_write_to_vehicle_geo_table(rowsPerSecond: int = 1000, numPartitions: int = 10):
-    table_name_vehicle_geo= "vehicle_geo"
+
+def stream_write_to_vehicle_geo_table(
+    rowsPerSecond: int = 1000, numPartitions: int = 10
+):
+    table_name_vehicle_geo = "vehicle_geo"
     (
         generated_vehicle_and_geo_df(rowsPerSecond, numPartitions)
-            .writeStream
-            .queryName(f"write_to_delta_table: {table_name_vehicle_geo}")
-            .option("checkpointLocation", f"{schema_storage_location}/{table_name_vehicle_geo}/_checkpoint")
-            .format("delta")
-            .toTable(f"{schema_name}.{table_name_vehicle_geo}")
+        .writeStream.queryName(f"write_to_delta_table: {table_name_vehicle_geo}")
+        .option(
+            "checkpointLocation",
+            f"{schema_storage_location}/{table_name_vehicle_geo}/_checkpoint",
+        )
+        .format("delta")
+        .toTable(f"{schema_name}.{table_name_vehicle_geo}")
     )
-
 
 
 # COMMAND ----------
 
-stream_write_to_vehicle_geo_table(rowsPerSecond = 1000, numPartitions = 10)
+stream_write_to_vehicle_geo_table(rowsPerSecond=1000, numPartitions=10)
 
 # COMMAND ----------
 
@@ -153,22 +159,26 @@ spark.read.table(f"{schema_name}.{table_name_vehicle_geo}").count()
 # COMMAND ----------
 
 display(
-    spark.sql(f"""
+    spark.sql(
+        f"""
     SELECT * 
     FROM {schema_name}.{table_name_vehicle_geo}
-""")
+"""
+    )
 )
 
 # COMMAND ----------
 
 display(
-    spark.sql(f"""
+    spark.sql(
+        f"""
     SELECT 
          min(timestamp)
         ,max(timestamp)
         ,current_timestamp()
     FROM {schema_name}.{table_name_vehicle_geo}
-""")
+"""
+    )
 )
 
 # COMMAND ----------
@@ -184,132 +194,155 @@ display(
 # COMMAND ----------
 
 vehicle_df = (
-        spark.readStream.format("delta").option("maxFilesPerTrigger","100").table(f"{schema_name}.vehicle_geo")
-        .selectExpr(
-            "event_id"
-            ,"timestamp as vehicle_timestamp"
-            ,"vehicle_year_make_model"
-            ,"vehicle_year_make_model_cat"
-            ,"vehicle_make_model"
-            ,"vehicle_make"
-            ,"vehicle_year"
-            ,"vehicle_category"
-            ,"vehicle_object"
-            )
+    spark.readStream.format("delta")
+    .option("maxFilesPerTrigger", "100")
+    .table(f"{schema_name}.vehicle_geo")
+    .selectExpr(
+        "event_id",
+        "timestamp as vehicle_timestamp",
+        "vehicle_year_make_model",
+        "vehicle_year_make_model_cat",
+        "vehicle_make_model",
+        "vehicle_make",
+        "vehicle_year",
+        "vehicle_category",
+        "vehicle_object",
     )
-#display(vehicle_df)
+)
+# display(vehicle_df)
 
 # COMMAND ----------
 
+
 def stream_write_to_vehicle_table():
     table_name_vehicle = "vehicle"
-    (   vehicle_df
-        .writeStream
-        #.trigger(availableNow=True)
+    (
+        vehicle_df.writeStream
+        # .trigger(availableNow=True)
         .queryName(f"write_to_delta_table: {table_name_vehicle}")
-        .option("checkpointLocation", f"{schema_storage_location}/{table_name_vehicle}/_checkpoint")
+        .option(
+            "checkpointLocation",
+            f"{schema_storage_location}/{table_name_vehicle}/_checkpoint",
+        )
         .format("delta")
         .toTable(f"{schema_name}.{table_name_vehicle}")
     )
 
-stream_write_to_vehicle_table()    
+
+stream_write_to_vehicle_table()
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC #### Create a Geo Table
 # MAGIC We have added a filter when we write to this table. This would be useful when we emulate the left join scenario.
-# MAGIC 
-# MAGIC Filter:  ```where("value like '1%' ")``` 
+# MAGIC
+# MAGIC Filter:  ```where("value like '1%' ")```
 
 # COMMAND ----------
 
 geo_df = (
-    spark.readStream.format("delta").option("maxFilesPerTrigger","100").table(f"{schema_name}.vehicle_geo")
-        .selectExpr(
-            "event_id"
-            ,"value"
-            ,"timestamp as geo_timestamp"
-            ,"latitude"
-            ,"longitude"
-            ,"location_on_land"
-            ,"local_latlng"
-            ,"cast( zipcode as integer) as zipcode"
-        ).where("value like '1%' ") 
+    spark.readStream.format("delta")
+    .option("maxFilesPerTrigger", "100")
+    .table(f"{schema_name}.vehicle_geo")
+    .selectExpr(
+        "event_id",
+        "value",
+        "timestamp as geo_timestamp",
+        "latitude",
+        "longitude",
+        "location_on_land",
+        "local_latlng",
+        "cast( zipcode as integer) as zipcode",
     )
-#geo_df.printSchema()
-#display(geo_df)
+    .where("value like '1%' ")
+)
+# geo_df.printSchema()
+# display(geo_df)
 
 # COMMAND ----------
 
+
 def stream_write_to_geo_table():
     table_name_geo = "geo"
-    (   geo_df
-        .writeStream
-        #.trigger(availableNow=True)
+    (
+        geo_df.writeStream
+        # .trigger(availableNow=True)
         .queryName(f"write_to_delta_table: {table_name_geo}")
-        .option("checkpointLocation", f"{schema_storage_location}/{table_name_geo}/_checkpoint")
+        .option(
+            "checkpointLocation",
+            f"{schema_storage_location}/{table_name_geo}/_checkpoint",
+        )
         .format("delta")
         .toTable(f"{schema_name}.{table_name_geo}")
     )
-    
-stream_write_to_geo_table()    
+
+
+stream_write_to_geo_table()
 
 # COMMAND ----------
 
 display(
-    spark.sql(f'''
+    spark.sql(
+        f"""
         SELECT *
         FROM {schema_name}.{table_name_geo}
-    ''')
+    """
+    )
 )
 
 # COMMAND ----------
 
 display(
-    spark.sql(f'''
+    spark.sql(
+        f"""
         SELECT count(1) as row_count
         FROM {schema_name}.{table_name_geo}
-    ''')
+    """
+    )
 )
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Set a base line using traditional SQL 
+# MAGIC # Set a base line using traditional SQL
 # MAGIC Before we do the actual streaming joins. Let's do a regular join and figure out the expected row count
 
 # COMMAND ----------
 
 # DBTITLE 1,Inner Join
-sql_query_batch_inner_join = f'''
+sql_query_batch_inner_join = f"""
         SELECT count(vehicle.event_id) as row_count_for_inner_join
         FROM {schema_name}.{table_name_vehicle} vehicle
         JOIN {schema_name}.{table_name_geo} geo
         ON vehicle.event_id = geo.event_id
     AND vehicle_timestamp >= geo_timestamp  - INTERVAL 5 MINUTES        
-        '''
-print(f''' Run SQL Query: 
+        """
+print(
+    f""" Run SQL Query: 
           {sql_query_batch_inner_join}       
-       ''')
-display( spark.sql(sql_query_batch_inner_join) )
+       """
+)
+display(spark.sql(sql_query_batch_inner_join))
 
 
 # COMMAND ----------
 
 # DBTITLE 1,Left Join
-sql_query_batch_left_join = f'''
+sql_query_batch_left_join = f"""
         SELECT count(vehicle.event_id) as row_count_for_left_join
         FROM {schema_name}.{table_name_vehicle} vehicle
         LEFT JOIN {schema_name}.{table_name_geo} geo
         ON vehicle.event_id = geo.event_id
             -- Assume there is a business logic that timestamp cannot be more than 15 minutes off
     AND vehicle_timestamp >= geo_timestamp  - INTERVAL 5 MINUTES
-        '''
-print(f''' Run SQL Query: 
+        """
+print(
+    f""" Run SQL Query: 
           {sql_query_batch_left_join}       
-       ''')
-display( spark.sql(sql_query_batch_left_join) )
+       """
+)
+display(spark.sql(sql_query_batch_left_join))
 
 
 # COMMAND ----------
@@ -325,7 +358,7 @@ display( spark.sql(sql_query_batch_left_join) )
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Stream-Stream Join 
+# MAGIC # Stream-Stream Join
 
 # COMMAND ----------
 
@@ -334,23 +367,33 @@ display( spark.sql(sql_query_batch_left_join) )
 
 # COMMAND ----------
 
-def stream_from_delta_and_create_view (schema_name: str, table_name:str, column_to_watermark_on:str, how_late_can_the_data_be: str = "2 minutes" , maxFilesPerTrigger: int = 100):
+
+def stream_from_delta_and_create_view(
+    schema_name: str,
+    table_name: str,
+    column_to_watermark_on: str,
+    how_late_can_the_data_be: str = "2 minutes",
+    maxFilesPerTrigger: int = 100,
+):
     view_name = f"_streaming_vw_{schema_name}_{table_name}"
-    print(f"Table {schema_name}.{table_name} is now streaming under a temporoary view called {view_name}")
+    print(
+        f"Table {schema_name}.{table_name} is now streaming under a temporoary view called {view_name}"
+    )
     (
         spark.readStream.format("delta")
         .option("maxFilesPerTrigger", f"{maxFilesPerTrigger}")
         .option("withEventTimeOrder", "true")
         .table(f"{schema_name}.{table_name}")
-        .withWatermark(f"{column_to_watermark_on}",how_late_can_the_data_be)
+        .withWatermark(f"{column_to_watermark_on}", how_late_can_the_data_be)
         .createOrReplaceTempView(view_name)
     )
+
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Define Streaming Views
-# MAGIC Some people prefer to write logic in SQL. Thus, we are creating streaming views which could be manipulated with SQL 
+# MAGIC Some people prefer to write logic in SQL. Thus, we are creating streaming views which could be manipulated with SQL
 
 # COMMAND ----------
 
@@ -359,39 +402,49 @@ def stream_from_delta_and_create_view (schema_name: str, table_name:str, column_
 
 # COMMAND ----------
 
-stream_from_delta_and_create_view(schema_name =schema_name, table_name = 'vehicle', column_to_watermark_on ="vehicle_timestamp", how_late_can_the_data_be = "1 minutes" )
-
+stream_from_delta_and_create_view(
+    schema_name=schema_name,
+    table_name="vehicle",
+    column_to_watermark_on="vehicle_timestamp",
+    how_late_can_the_data_be="1 minutes",
+)
 
 
 # COMMAND ----------
 
 display(
-    spark.sql(f'''
+    spark.sql(
+        f"""
         SELECT COUNT(1)
         FROM _streaming_vw_test_streaming_joins_vehicle
-    ''')
+    """
+    )
 )
 
 # COMMAND ----------
 
 display(
-    spark.sql(f'''
+    spark.sql(
+        f"""
         SELECT *
         FROM _streaming_vw_test_streaming_joins_vehicle
-    ''')
+    """
+    )
 )
 
 # COMMAND ----------
 
 display(
-    spark.sql(f'''
+    spark.sql(
+        f"""
         SELECT 
             vehicle_make
             ,count(1) as row_count
         FROM _streaming_vw_test_streaming_joins_vehicle
         GROUP BY vehicle_make
         ORDER BY vehicle_make
-    ''')
+    """
+    )
 )
 
 # COMMAND ----------
@@ -401,15 +454,22 @@ display(
 
 # COMMAND ----------
 
-stream_from_delta_and_create_view(schema_name =schema_name, table_name = 'geo', column_to_watermark_on ="geo_timestamp", how_late_can_the_data_be = "2 minutes" )
+stream_from_delta_and_create_view(
+    schema_name=schema_name,
+    table_name="geo",
+    column_to_watermark_on="geo_timestamp",
+    how_late_can_the_data_be="2 minutes",
+)
 
 # COMMAND ----------
 
 display(
-    spark.sql(f'''
+    spark.sql(
+        f"""
         SELECT *
         FROM _streaming_vw_test_streaming_joins_geo
-    ''')
+    """
+    )
 )
 
 # COMMAND ----------
@@ -431,20 +491,24 @@ sql_for_stream_stream_inner_join = f"""
     -- Assume there is a business logic that timestamp cannot be more than X minutes off
     AND vehicle_timestamp >= geo_timestamp - INTERVAL 5 minutes
 """
-#display(spark.sql(sql_for_stream_stream_inner_join))
+# display(spark.sql(sql_for_stream_stream_inner_join))
 
 # COMMAND ----------
 
 
-table_name_stream_stream_innner_join ='stream_stream_innner_join'
+table_name_stream_stream_innner_join = "stream_stream_innner_join"
 
-(   spark.sql(sql_for_inner_join)
+(
+    spark.sql(sql_for_inner_join)
     .writeStream
-    #.trigger(availableNow=True)
-        .queryName(f"write_to_delta_table: {table_name_stream_stream_innner_join}")
-        .option("checkpointLocation", f"{schema_storage_location}/{table_name_stream_stream_innner_join}/_checkpoint")
-        .format("delta")
-        .toTable(f"{schema_name}.{table_name_stream_stream_innner_join}")
+    # .trigger(availableNow=True)
+    .queryName(f"write_to_delta_table: {table_name_stream_stream_innner_join}")
+    .option(
+        "checkpointLocation",
+        f"{schema_storage_location}/{table_name_stream_stream_innner_join}/_checkpoint",
+    )
+    .format("delta")
+    .toTable(f"{schema_name}.{table_name_stream_stream_innner_join}")
 )
 
 # COMMAND ----------
@@ -474,19 +538,23 @@ sql_for_stream_stream_left_join = f"""
     ON vehicle.event_id = geo.event_id
     AND vehicle_timestamp >= geo_timestamp  - INTERVAL 5 MINUTES
 """
-#display(spark.sql(sql_for_stream_stream_left_join))
+# display(spark.sql(sql_for_stream_stream_left_join))
 
 # COMMAND ----------
 
-table_name_stream_stream_left_join ='stream_stream_left_join'
+table_name_stream_stream_left_join = "stream_stream_left_join"
 
-(   spark.sql(sql_for_stream_stream_left_join)
+(
+    spark.sql(sql_for_stream_stream_left_join)
     .writeStream
-    #.trigger(availableNow=True)
-        .queryName(f"write_to_delta_table: {table_name_stream_stream_left_join}")
-        .option("checkpointLocation", f"{schema_storage_location}/{table_name_stream_stream_left_join}/_checkpoint")
-        .format("delta")
-        .toTable(f"{schema_name}.{table_name_stream_stream_left_join}")
+    # .trigger(availableNow=True)
+    .queryName(f"write_to_delta_table: {table_name_stream_stream_left_join}")
+    .option(
+        "checkpointLocation",
+        f"{schema_storage_location}/{table_name_stream_stream_left_join}/_checkpoint",
+    )
+    .format("delta")
+    .toTable(f"{schema_name}.{table_name_stream_stream_left_join}")
 )
 
 # COMMAND ----------
@@ -496,21 +564,21 @@ spark.read.table(f"{schema_name}.{table_name_stream_stream_left_join}").count()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ##### You will find that some records could not match are not being released which is expected. 
-# MAGIC 
+# MAGIC ##### You will find that some records could not match are not being released which is expected.
+# MAGIC
 # MAGIC [The outer NULL results will be generated with a delay that depends on the specified watermark delay and the time range condition. This is because the engine has to wait for that long to ensure there were no matches and there will be no more matches in future.](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#outer-joins-with-watermarking)
-# MAGIC 
+# MAGIC
 # MAGIC **Watermark will advance once new data is pushed to it**
 
 # COMMAND ----------
 
-stream_write_to_vehicle_geo_table(rowsPerSecond = 10, numPartitions = 10)
+stream_write_to_vehicle_geo_table(rowsPerSecond=10, numPartitions=10)
 
 # COMMAND ----------
 
-# MAGIC %md 
+# MAGIC %md
 # MAGIC Send a batch of data is written and kill the above Stream. What to observe:
-# MAGIC 1. Soon you should see the watermark moves ahead and number of records in 'Aggregation State' goes down. 
+# MAGIC 1. Soon you should see the watermark moves ahead and number of records in 'Aggregation State' goes down.
 # MAGIC 2. If you click on the running stream and click the raw data tab and look for "watermark". You would see it has advanced
 # MAGIC 3. Once 0 records per seconds are being processed that means your stream has caught up and now your row count should match up with the traditional SQL left join
 
@@ -545,5 +613,3 @@ dbutils.fs.ls(schema_storage_location)
 # MAGIC show tables in test_streaming_joins
 
 # COMMAND ----------
-
-
