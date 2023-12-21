@@ -28,7 +28,8 @@ from pyspark.sql.functions import col, expr
 # COMMAND ----------
 
 # Target Stareaming Table specification
-bronze_target = "bronze_stream"
+bronze_table = "bronze_stream"
+silver_table = f"built_using_dlt_apply_change"
 
 # COMMAND ----------
 
@@ -82,7 +83,37 @@ import dlt
 # COMMAND ----------
 
 @dlt.table(
-    name = bronze_target
+    name = bronze_table
 )
-def dlt_bronze_target():
+def dlt_bronze_table():
     return streaming_df
+
+# COMMAND ----------
+
+view_name = f"view_on_top_of_{bronze_table}"
+@dlt.view(
+  name=view_name
+)
+def parse_streaming_users():
+    result_df = (
+          spark.readStream.option("skipChangeCommits", "true").table(f"live.{bronze_table}")
+          .selectExpr(
+              "fake_id as id"
+              ,"fake_firstname as first_name"
+              ,"json_data.email as email"
+              ,"value"
+            )
+    )
+    return result_df
+
+# COMMAND ----------
+
+dlt.create_streaming_table(silver_table)
+
+dlt.apply_changes(
+  target = silver_table,
+  source = view_name,
+  keys = ["id"],
+  sequence_by = col("value"),
+  stored_as_scd_type = 1
+)
