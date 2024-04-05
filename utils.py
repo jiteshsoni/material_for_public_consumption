@@ -39,13 +39,55 @@ def append_ingestion_columns(_df: DataFrame):
         "ingestion_date", current_date()
     )
 
-#  Check if the table or view with the specified name exists in the specified database.
-def does_table_exist(database_name: str, table_name: str) -> bool:
-    # Usage :doesTableExist(database_name='bronze', table_name ='synthetic_transactions')
-    table_list = [
-        table.name.lower() for table in spark.catalog.listTables(database_name)
-    ]
-    return table_name.lower() in table_list
+# #  Check if the table or view with the specified name exists in the specified database.
+# def does_table_exist(database_name: str, table_name: str) -> bool:
+#     # Usage :doesTableExist(database_name='bronze', table_name ='synthetic_transactions')
+#     table_list = [
+#         table.name.lower() for table in spark.catalog.listTables(database_name)
+#     ]
+#     return table_name.lower() in table_list
+
+def is_valid_table_name(table_name: str) -> bool:
+    """
+    Checks if the given table name follows the 3-space naming convention.
+
+    Args:
+        table_name (str): The table name to validate.
+
+    Returns:
+        bool: True if the table name follows the convention, False otherwise.
+    """
+    table_parts = table_name.split('.')
+    return len(table_parts) == 3
+
+def does_table_exist(spark: SparkSession,
+                                      table_name: str) -> bool:
+    """
+    Check if a table exists in Unity Catalog
+    Args:
+        spark (SparkSession): The Spark session.
+        table_name (str): The name of the table.
+
+    Returns:
+        bool: True if table exists (and meets the where_clause if provided), False otherwise.
+    """
+
+    # Validate table name
+    is_valid_table_name(table_name)
+
+    # Check if table exists
+    try:
+        df = spark.read.table(table_name)
+        return True
+
+    except AnalysisException as e:
+        return False
+        # if "TABLE_OR_VIEW_NOT_FOUND" in e.desc:
+        #     return False
+        # else:
+        #     raise  # Re-raise the exception if it's not the specific one we're looking for
+
+
 
 
 # https://realpython.com/python-timer/
