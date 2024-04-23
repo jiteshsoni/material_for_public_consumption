@@ -26,16 +26,16 @@ import uuid
 # COMMAND ----------
 
 # define schema name and where should the table be stored
-schema_name = "test_streaming_joins"
-schema_storage_location = "/tmp/CHOOSE_A_PERMANENT_LOCATION/"
+catalog_name = "soni"
+database_name = "test_streaming_joins"
+schema_storage_location = f"/tmp/{catalog_name}/{database_name}/"
 
 
 # Please download this file from https://simplemaps.com/data/us-zips then download and place it at a location of your choice and then change the value for the variable below
-static_table_csv_file = "/FileStore/jitesh.soni/data/us_zip_code_and_its_attributes.csv"
+static_table_csv_file = "/FileStore/uszips.csv"
 
 # Static table specification
 static_table_name = "static_zip_codes"
-
 
 # Target Stareaming Table specification
 target_table_name = "joined_datasets"
@@ -51,10 +51,9 @@ checkpoint_location = f"{schema_storage_location}/{target_table_name}/_checkpoin
 # COMMAND ----------
 
 create_schema_sql = f"""
-    CREATE SCHEMA IF NOT EXISTS {schema_name}
-    COMMENT 'This is {schema_name} schema'
-    LOCATION '{schema_storage_location}'
-    WITH DBPROPERTIES ( Owner='Jitesh');
+    CREATE DATABASE IF NOT EXISTS {catalog_name}.{database_name}
+    COMMENT 'This is {database_name} schema'
+    ;
     """
 print(f"create_schema_sql: {create_schema_sql}")
 
@@ -78,7 +77,11 @@ display(csv_df)
 
 # COMMAND ----------
 
-csv_df.write.saveAsTable(f"{schema_name}.{static_table_name}")
+display(csv_df.where("zip = 98004"))
+
+# COMMAND ----------
+
+csv_df.write.saveAsTable(f"{catalog_name}.{database_name}.{static_table_name}")
 
 # COMMAND ----------
 
@@ -89,7 +92,7 @@ csv_df.write.saveAsTable(f"{schema_name}.{static_table_name}")
 
 spark.sql(
     f"""
-    OPTIMIZE {schema_name}.{static_table_name} ZORDER BY (zip);
+    OPTIMIZE {catalog_name}.{database_name}.{static_table_name} ZORDER BY (zip);
     """
 )
 
@@ -117,8 +120,8 @@ fake_zipcode = F.udf(fake.zipcode)
 
 streaming_df = (
     spark.readStream.format("rate")
-    .option("numPartitions", 10)
-    .option("rowsPerSecond", 1 * 1000)
+    .option("numPartitions", 64)
+    .option("rowsPerSecond", 1 * 1000000)
     .load()
     .withColumn("fake_id", fake_id())
     .withColumn("fake_firstname", fake_firstname())
@@ -138,7 +141,11 @@ streaming_df = (
 
 # COMMAND ----------
 
-lookup_delta_df = spark.read.table(static_table_name)
+static_table_name
+
+# COMMAND ----------
+
+lookup_delta_df = spark.read.table(f"{catalog_name}.{database_name}.{static_table_name}")
 
 
 joined_streaming_df = streaming_df.join(
@@ -161,7 +168,7 @@ joined_streaming_df = streaming_df.join(
     .queryName("do_a_stream_join_with_the_delta_table")
     .option("checkpointLocation", checkpoint_location)
     .format("delta")
-    .toTable(f"{schema_name}.{target_table_name}")
+    .toTable(f"{catalog_name}.{database_name}.{target_table_name}")
 )
 
 # COMMAND ----------
@@ -171,11 +178,11 @@ joined_streaming_df = streaming_df.join(
 
 # COMMAND ----------
 
-display(spark.read.table(f"{schema_name}.{target_table_name}"))
+display(spark.read.table(f"{catalog_name}.{database_name}.{target_table_name}"))
 
 # COMMAND ----------
 
-spark.read.table(f"{schema_name}.{target_table_name}").count()
+spark.read.table(f"{catalog_name}.{database_name}.{target_table_name}").count()
 
 # COMMAND ----------
 
@@ -184,9 +191,19 @@ spark.read.table(f"{schema_name}.{target_table_name}").count()
 
 # COMMAND ----------
 
+display(
+  spark.sql(
+    f"""
+      SHOW TABLES IN  {catalog_name}.{database_name} 
+"""
+  )
+)
+
+# COMMAND ----------
+
 spark.sql(
     f"""
-    drop schema if exists {schema_name} CASCADE
+    drop schema if exists {catalog_name}.{database_name} CASCADE
 """
 )
 
