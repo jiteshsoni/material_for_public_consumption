@@ -6,6 +6,7 @@ import asyncio
 
 # MAGIC %md
 # MAGIC ## Append to a single table
+# MAGIC
 
 # COMMAND ----------
 
