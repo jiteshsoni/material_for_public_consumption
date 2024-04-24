@@ -86,7 +86,7 @@ display(spark.sql(f"""
 
 # COMMAND ----------
 
-events_with_watermark_df = spark.readStream.option("maxFilesPerTrigger",10).table(events_table).withWatermark("event_ts", "20 minutes")
+events_with_watermark_df = spark.readStream.option("maxFilesPerTrigger",10).table(events_table).withWatermark("event_ts", "2 minutes")
 #display(events_with_watermark_df)
 
 # COMMAND ----------
@@ -141,7 +141,7 @@ instantiateForEachBatchProcessor = forEachBatchProcessor(target_table=target_tab
   .writeStream
   .trigger(processingTime="1 minute")
   .option("checkpointLocation", checkpoint_location_for_update)
-  .option("queryName", f"Update{target_table}")
+  .option("queryName", f"SparkStreamingForEachBatchWithAJoinDynamicFilePruning{target_table}")
   .foreachBatch(instantiateForEachBatchProcessor.make_changes_using_the_micro_batch)
   .start()
 )
@@ -151,6 +151,10 @@ instantiateForEachBatchProcessor = forEachBatchProcessor(target_table=target_tab
 display(spark.sql(f"""
                   DESCRIBE HISTORY  {target_table}
                   """))
+
+# COMMAND ----------
+
+dbutils.fs.rm(checkpoint_location_for_update, True)
 
 # COMMAND ----------
 
