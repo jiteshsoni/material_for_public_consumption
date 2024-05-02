@@ -138,13 +138,6 @@ events_stream = spark.readStream.table(source_table)
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT *
-# MAGIC FROM SONI.default.streaming_agg_events_with_merge
-# MAGIC --where request_id = '<REPLACE_WITH_REQUEST_ID_WHICH_WE_JUST_INGESTED>'
-
-# COMMAND ----------
-
 display(
     spark.sql(f"""
       SELECT size(collected_events) as number_of_events_on_request_id ,  *
@@ -152,10 +145,6 @@ display(
       order by size(collected_events) desc
 """)
 )
-
-# COMMAND ----------
-
-target_table
 
 # COMMAND ----------
 
