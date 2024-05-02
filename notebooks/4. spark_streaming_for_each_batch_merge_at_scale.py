@@ -110,7 +110,8 @@ class forEachBatchProcessor:
                 agg_df.alias("updates"),
                 "delta.request_id = updates.request_id"
             ).whenMatchedUpdate(set={
-                "collected_events": F.concat(col("delta.collected_events"), col("updates.collected_events"))
+                "collected_events": F.concat(col("delta.collected_events"), col("updates.collected_events")),
+                "ingestion_timestamp": col("updates.ingestion_timestamp")
             }).whenNotMatchedInsertAll().execute()
         else:
             agg_df.write.mode("append").saveAsTable(self.target_table)
@@ -141,13 +142,6 @@ events_stream = spark.readStream.table(source_table)
 # MAGIC SELECT *
 # MAGIC FROM SONI.default.streaming_agg_events_with_merge
 # MAGIC --where request_id = '<REPLACE_WITH_REQUEST_ID_WHICH_WE_JUST_INGESTED>'
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC SELECT count(1)
-# MAGIC FROM SONI.default.streaming_agg_events_with_merge
-# MAGIC
 
 # COMMAND ----------
 
