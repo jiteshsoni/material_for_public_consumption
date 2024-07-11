@@ -32,6 +32,8 @@ from datetime import date
 CATALOG_NAME = "soni"
 DATABASE_NAME = date.today().strftime('%Y_%m_%d')
 
+DATABASE_NAME = '2024_06_25'
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -85,7 +87,7 @@ def generate_phone_number():
 
 # COMMAND ----------
 
-def generate_human_data_df(rows_per_second: int = 1000, num_partitions: int = 4) -> DataFrame:
+def generate_human_data_df(rows_per_second: int = 100, num_partitions: int = 4) -> DataFrame:
     """Generate a DataFrame with fake human data."""
     return (
         spark.readStream.format("rate")
