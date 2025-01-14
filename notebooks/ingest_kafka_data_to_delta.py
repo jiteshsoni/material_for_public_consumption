@@ -1,149 +1,349 @@
 # Databricks notebook source
-https://confluent.cloud/environments/env-g9z3n3/clusters/lkc-mn35ow/connectors/sources/sample_data
+# MAGIC %md
+# MAGIC ## [Link to Kafka Cluster](https://confluent.cloud/environments/env-g9z3n3/clusters/lkc-mn35ow/connectors/sources/sample_data)
 
 # COMMAND ----------
 
-from pyspark.sql.types import StructType, StringType, FloatType
-from pyspark.sql.functions import *
-# Define the schema based on the DataFrame structure you are writing to Kafka
-schema = StructType() \
-    .add("event_id", StringType()) \
-    .add("vehicle_year_make_model", StringType()) \
-    .add("vehicle_year_make_model_cat", StringType()) \
-    .add("vehicle_make_model", StringType()) \
-    .add("vehicle_make", StringType()) \
-    .add("vehicle_model", StringType()) \
-    .add("vehicle_year", StringType()) \
-    .add("vehicle_category", StringType()) \
-    .add("vehicle_object", StringType()) \
-    .add("latitude", StringType()) \
-    .add("longitude", StringType()) \
-    .add("location_on_land", StringType()) \
-    .add("local_latlng", StringType()) \
-    .add("zipcode", StringType()) \
-    .add("large_text_col_1", StringType()) \
-    .add("large_text_col_2", StringType()) \
-    .add("large_text_col_3", StringType()) \
-    .add("large_text_col_4", StringType()) \
-    .add("large_text_col_5", StringType()) \
-    .add("large_text_col_6", StringType()) \
-    .add("large_text_col_7", StringType()) \
-    .add("large_text_col_8", StringType()) \
-    .add("large_text_col_9", StringType())
+# MAGIC %md
+# MAGIC ## Parameters
+
+# COMMAND ----------
+
+# Generate a unique scope name
+scope_name = f'master_class_scope'
+kafka_bootstrap_servers_tls = "pkc-mz3gw.westus3.azure.confluent.cloud:9092"
+topic = "sample_data_stock_trades"
+target_table = f"cdg_databricks_workspace_jan_2025.default.{topic}"
+# Ideally do not write it temp but an actual location on s3 or blob stroage
+checkpoint_location_prefix = f"/tmp/_checkpoint/{target_table}"
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Handle Kafka secrets
+
+# COMMAND ----------
+
+# from databricks.sdk import WorkspaceClient
+
+# # Create a WorkspaceClient
+# w = WorkspaceClient()
+
+
+# # Create the scope
+# w.secrets.create_scope(scope=scope_name)
+
+# # Add the secret to the scope
+# w.secrets.put_secret(scope=scope_name, key="kafka_api_key", string_value="your api key here ")
+# w.secrets.put_secret(scope=scope_name, key="kafka_api_secret", string_value="your api secrete here")
+
+# COMMAND ----------
+
+dbutils.secrets.list(scope=scope_name)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Get back secrets from Databricks Secret
+
+# COMMAND ----------
+
+kafka_api_key = dbutils.secrets.get(scope=scope_name, key="kafka_api_key")
+kafka_api_secret = dbutils.secrets.get(scope=scope_name, key="kafka_api_secret")
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Start Ingestion from Kafka
+
+# COMMAND ----------
+
+from pyspark.sql.functions import col, from_json, expr
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC
+
+# COMMAND ----------
 
 def read_kafka_stream():
-    kafka_stream = (spark.readStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", kafka_bootstrap_servers_tls ) 
-      .option("subscribe", topic )
-      .option("failOnDataLoss","false")
-      .option("kafka.security.protocol", "SASL_SSL")
-      .option("kafka.sasl.mechanism", "PLAIN") 
-      .option("kafka.sasl.jaas.config", f'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_api_key}" password="{kafka_api_secret}";')
-      .option("minPartitions",12)
-      .load()
-      .select(from_json(col("value").cast("string"), schema).alias("data"), "topic", "partition", "offset", "timestamp", "timestampType" )
-      .select("topic", "partition", "offset", "timestamp", "timestampType", "data.*")
+    # Read Kafka stream and process in a single step
+    structured_stream = (spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", kafka_bootstrap_servers_tls)
+        .option("failOnDataLoss", "false")
+        .option("kafka.security.protocol", "SASL_SSL")
+        .option("kafka.sasl.mechanism", "PLAIN")
+        .option("kafka.sasl.jaas.config", f'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_api_key}" password="{kafka_api_secret}";')
+        .option("subscribe", topic)
+        .option("startingOffsets", "earliest")
+        .option("minPartitions",6)
+        .option("maxOffsetsPerTrigger",100)
+        .load()
+         # Trim the first few bytes (e.g., the first 2 bytes)
+        .withColumn("casted_value", expr("CAST(value AS STRING)"))
     )
-    return kafka_stream
-
-# COMMAND ----------
-
-import dbldatagen as dg
-import uuid
-
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DoubleType, IntegerType
-from pyspark.sql.functions import expr
+    
+    return structured_stream
 
 
-# COMMAND ----------
-
-# Parameterize partitions and rows per second
-PARTITIONS = 4 # Match with number of cores on your cluster
-ROWS_PER_SECOND = 1 * 1000 * 1000 # 1 Million rows per second
 
 
 # COMMAND ----------
 
-
-# Define the schema for IoT data
-iot_data_schema = StructType([
-    StructField("device_id", StringType(), False),
-    StructField("event_timestamp", TimestampType(), False),
-    StructField("temperature", DoubleType(), False),
-    StructField("humidity", DoubleType(), False),
-    StructField("pressure", DoubleType(), False),
-    StructField("battery_level", IntegerType(), False),
-    StructField("device_type", StringType(), False),
-    StructField("error_code", IntegerType(), True),  # Optional field
-    StructField("signal_strength", IntegerType(), False)
-])
-
-# Create a data generator specification
-# Define columns, their data ranges, and other properties
-dataspec = (
-    dg.DataGenerator(spark, name="iot_data", partitions=PARTITIONS)
-    .withSchema(iot_data_schema)
-    .withColumnSpec("device_id", percentNulls=0.1, minValue=1000, maxValue=9999, prefix="DEV_", random=True)
-    .withColumnSpec("event_timestamp", begin="2023-01-01 00:00:00", end="2023-12-31 23:59:59", random=True)
-    .withColumnSpec("temperature", minValue=-10.0, maxValue=40.0, random=True)
-    .withColumnSpec("humidity", minValue=0.0, maxValue=100.0, random=True)
-    .withColumnSpec("pressure", minValue=900.0, maxValue=1100.0, random=True)
-    .withColumnSpec("battery_level", minValue=0, maxValue=100, random=True)
-    .withColumnSpec("device_type", values=["Sensor", "Actuator", "Gateway", "Controller"], random=True)
-    .withColumnSpec("error_code", minValue=0, maxValue=999, random=True, percentNulls=0.2)
-    .withColumnSpec("signal_strength", minValue=-100, maxValue=0, random=True)
-)
-
-# COMMAND ----------
-
-# Build the streaming DataFrame
-streaming_df = (
-    dataspec.build(
-        withStreaming=True,
-        options={
-            'rowsPerSecond': ROWS_PER_SECOND,
-        }
-    )
-    .withColumn(
-        "firmware_version",
-        expr(
-            "concat('v', cast(floor(rand() * 10) as string), '.', "
-            "cast(floor(rand() * 10) as string), '.', "
-            "cast(floor(rand() * 10) as string))"
-        )
-    )
-    .withColumn(
-        "location",
-        expr(
-            "concat(cast(rand() * 180 - 90 as decimal(8,6)), ',', "
-            "cast(rand() * 360 - 180 as decimal(9,6)))"
-        )
-    )
-    .withColumn(
-        "data_payload",
-        expr("repeat(uuid(), 22)")  # Add approx. 800 Bytes to construct 1 KB row
-    )
-)
-
-# Uncomment to preview the streaming DataFrame
-# display(streaming_df)
-
-# COMMAND ----------
-
-
+# Display the structured stream
+#display(read_kafka_stream())
 
 # COMMAND ----------
 
 # Write the streaming data to a Delta table
 (
-    streaming_df.writeStream
-        .queryName("iot_data_stream")  # Assign a name to the stream
-        .outputMode("append")
-        .option("checkpointLocation", f"/tmp/dbldatagen/streamingDemo/checkpoint-{uuid.uuid4()}")
-        .toTable("soni.default.iot_data_1kb_rows")
+    read_kafka_stream()
+    .writeStream
+    .queryName(f"write_kafka_topic_{topic}_to_table_{target_table}")  # Assign a name to the stream
+    .outputMode("append")
+    .option("checkpointLocation", f"{checkpoint_location_prefix}")
+    .toTable(target_table)
 )
 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Lets explore the checkpoint
+
+# COMMAND ----------
+
+checkpoint_location = f"{checkpoint_location_prefix}"
+display(dbutils.fs.ls(checkpoint_location))
+
+# COMMAND ----------
+
+dbutils.fs.ls(f"{checkpoint_location}/sources/")
+
+# COMMAND ----------
+
+dbutils.fs.ls(f"{checkpoint_location}/sources/0/0")
+
+# COMMAND ----------
+
+dbutils.fs.head(f"{checkpoint_location}/sources/0/0")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Explore Offsets folder
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location}/offsets/"))
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location}/offsets/56"))
+
+# COMMAND ----------
+
+dbutils.fs.head(f"{checkpoint_location}/offsets/56")
+
+# COMMAND ----------
+
+import json
+
+def print_pretty_json(data):
+    """
+    Parses and prints JSON fragments or JSON lines in a pretty format.
+
+    Args:
+        data (str): The input string containing JSON or JSON-like fragments.
+
+    Returns:
+        None
+    """
+    try:
+        # Split the input by newlines to handle each fragment separately
+        lines = data.split("\n")
+        
+        for line in lines:
+            # Skip version or non-JSON lines
+            if line.startswith("v"):
+                print(f"Version metadata: {line}")
+                continue
+            
+            # Attempt to parse and pretty-print each line as JSON
+            try:
+                json_obj = json.loads(line)
+                pretty_json = json.dumps(json_obj, indent=4)
+                print(pretty_json)
+            except json.JSONDecodeError:
+                print(f"Invalid JSON line: {line}")
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+# COMMAND ----------
+
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/offsets/56"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Explore commits folder
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location}/commits/"))
+
+# COMMAND ----------
+
+dbutils.fs.head(f"{checkpoint_location}/commits/36")
+
+# COMMAND ----------
+
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/commits/37"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Explore metadata folder
+# MAGIC
+# MAGIC
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location}/metadata/"))
+
+# COMMAND ----------
+
+print_pretty_json(dbutils.fs.head("dbfs:/tmp/_checkpoint/cdg_databricks_workspace_jan_2025.default.sample_data_stock_trades_2/metadata"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Add the concept of state
+
+# COMMAND ----------
+
+def read_kafka_strea_and_apply_state():
+    # Read Kafka stream and process in a single step
+    structured_stream = (spark.readStream
+        .format("kafka")
+        .option("kafka.bootstrap.servers", kafka_bootstrap_servers_tls)
+        .option("failOnDataLoss", "false")
+        .option("kafka.security.protocol", "SASL_SSL")
+        .option("kafka.sasl.mechanism", "PLAIN")
+        .option("kafka.sasl.jaas.config", f'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_api_key}" password="{kafka_api_secret}";')
+        .option("subscribe", topic)
+        .option("startingOffsets", "earliest")
+        .option("minPartitions",6)
+        .option("maxOffsetsPerTrigger",100)
+        .load()
+        .withWatermark("timestamp","1 minutes")
+        .dropDuplicatesWithinWatermark(["partition", "offset"])
+        .withColumn("casted_value", expr("CAST(value AS STRING)"))
+    )
+    
+    return structured_stream
+
+
+
+
+# COMMAND ----------
+
+#display(read_kafka_strea_and_apply_state())
+
+# COMMAND ----------
+
+target_table_for_stateful_streaming = f"{target_table}_for_stateful_streaming"
+checkpoint_location_prefix_for_stateful_streaming = f"/tmp/_checkpoint/{target_table_for_stateful_streaming}"
+
+# Write the streaming data to a Delta table
+(
+    read_kafka_strea_and_apply_state()
+    .writeStream
+    .queryName(f"write_kafka_topic_{topic}_to_table_{target_table_for_stateful_streaming}")  # Assign a name to the stream
+    .outputMode("append")
+    .option("checkpointLocation", f"{checkpoint_location_prefix_for_stateful_streaming}")
+    .toTable(target_table_for_stateful_streaming)
+)
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(checkpoint_location_prefix_for_stateful_streaming))
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/state"))
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/state/0/"))
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Look at the change in the processing speed after we set spark shuffle partitions
+
+# COMMAND ----------
+
+# Dynamically set the shuffle partitions for the current job
+spark.conf.set("spark.sql.shuffle.partitions", "6")  # Set to 6 partitions to match kafka
+# Verify the change
+print(f"Shuffle partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
+
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/state/0/"))
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/state/0/1"))
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(checkpoint_location_prefix_for_stateful_streaming))
+
+# COMMAND ----------
+
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/offsets"))
+
+# COMMAND ----------
+
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location_prefix_for_stateful_streaming}/offsets/217"))
+
+# COMMAND ----------
+
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location_prefix_for_stateful_streaming}/off"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Clean checkpoints and tables
+
+# COMMAND ----------
+
+dbutils.fs.rm(checkpoint_location_prefix_for_stateful_streaming,True)
+
+# COMMAND ----------
+
+dbutils.fs.rm(checkpoint_location_prefix,True)
+
+# COMMAND ----------
+
+spark.sql(f"Drop table if exists {target_table}")
+
+# COMMAND ----------
+
+spark.sql(f"Drop table if exists {target_table_for_stateful_streaming}")
 
 # COMMAND ----------
 
