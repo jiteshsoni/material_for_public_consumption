@@ -81,10 +81,9 @@ def read_kafka_stream():
         .option("kafka.sasl.jaas.config", f'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_api_key}" password="{kafka_api_secret}";')
         .option("subscribe", topic)
         .option("startingOffsets", "earliest")
-        .option("minPartitions",6)
+        .option("minPartitions",6 ) # Match the number of Kafka Partitions 
         .option("maxOffsetsPerTrigger",100)
         .load()
-         # Trim the first few bytes (e.g., the first 2 bytes)
         .withColumn("casted_value", expr("CAST(value AS STRING)"))
     )
     
@@ -96,7 +95,7 @@ def read_kafka_stream():
 # COMMAND ----------
 
 # Display the structured stream
-#display(read_kafka_stream())
+display(read_kafka_stream())
 
 # COMMAND ----------
 
@@ -107,6 +106,7 @@ def read_kafka_stream():
     .queryName(f"write_kafka_topic_{topic}_to_table_{target_table}")  # Assign a name to the stream
     .outputMode("append")
     .option("checkpointLocation", f"{checkpoint_location_prefix}")
+    .trigger(availableNow=True) #.trigger(availableNow=True) #    \
     .toTable(target_table)
 )
 
@@ -143,11 +143,11 @@ display(dbutils.fs.ls(f"{checkpoint_location}/offsets/"))
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(f"{checkpoint_location}/offsets/56"))
+display(dbutils.fs.ls(f"{checkpoint_location}/offsets/223"))
 
 # COMMAND ----------
 
-dbutils.fs.head(f"{checkpoint_location}/offsets/56")
+dbutils.fs.head(f"{checkpoint_location}/offsets/223")
 
 # COMMAND ----------
 
@@ -187,7 +187,7 @@ def print_pretty_json(data):
 
 # COMMAND ----------
 
-print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/offsets/56"))
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/offsets/223"))
 
 # COMMAND ----------
 
@@ -204,7 +204,12 @@ dbutils.fs.head(f"{checkpoint_location}/commits/36")
 
 # COMMAND ----------
 
-print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/commits/37"))
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/commits/225"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Beginner's stop here. This is enough information for you to build your first job
 
 # COMMAND ----------
 
@@ -285,6 +290,11 @@ display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/st
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC
+
+# COMMAND ----------
+
 
 
 # COMMAND ----------
@@ -323,6 +333,27 @@ print_pretty_json(dbutils.fs.head(f"{checkpoint_location_prefix_for_stateful_str
 # COMMAND ----------
 
 print_pretty_json(dbutils.fs.head(f"{checkpoint_location_prefix_for_stateful_streaming}/off"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## New API to read state
+# MAGIC https://www.databricks.com/resources/demos/videos/data-streaming/querying-state-data-in-spark-structured-streaming-with-state-reader-api?itm_data=demo_center
+
+# COMMAND ----------
+
+# checkpoint_location
+# checkpoint_location_prefix_for_stateful_streaming
+
+# COMMAND ----------
+
+statestore_df = spark.read.format("statestore").load(checkpoint_location_prefix_for_stateful_streaming)
+display(statestore_df)
+
+# COMMAND ----------
+
+state_metadata_df = spark.read.format("state-metadata").load(checkpoint_location_prefix_for_stateful_streaming)
+display(state_metadata_df)
 
 # COMMAND ----------
 
