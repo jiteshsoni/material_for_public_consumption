@@ -55,6 +55,47 @@ kafka_api_secret = dbutils.secrets.get(scope=scope_name, key="kafka_api_secret")
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ### Pretty print JSON
+
+# COMMAND ----------
+
+import json
+
+def print_pretty_json(data):
+    """
+    Parses and prints JSON fragments or JSON lines in a pretty format.
+
+    Args:
+        data (str): The input string containing JSON or JSON-like fragments.
+
+    Returns:
+        None
+    """
+    try:
+        # Split the input by newlines to handle each fragment separately
+        lines = data.split("\n")
+        
+        for line in lines:
+            # Skip version or non-JSON lines
+            if line.startswith("v"):
+                print(f"Version metadata: {line}")
+                continue
+            
+            # Attempt to parse and pretty-print each line as JSON
+            try:
+                json_obj = json.loads(line)
+                pretty_json = json.dumps(json_obj, indent=4)
+                print(pretty_json)
+            except json.JSONDecodeError:
+                print(f"Invalid JSON line: {line}")
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC # Start Ingestion from Kafka
 
 # COMMAND ----------
@@ -95,7 +136,7 @@ def read_kafka_stream():
 # COMMAND ----------
 
 # Display the structured stream
-display(read_kafka_stream())
+#display(read_kafka_stream())
 
 # COMMAND ----------
 
@@ -122,6 +163,10 @@ display(dbutils.fs.ls(checkpoint_location))
 
 # COMMAND ----------
 
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/metadata/"))
+
+# COMMAND ----------
+
 dbutils.fs.ls(f"{checkpoint_location}/sources/")
 
 # COMMAND ----------
@@ -134,6 +179,10 @@ dbutils.fs.head(f"{checkpoint_location}/sources/0/0")
 
 # COMMAND ----------
 
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/sources/0/0"))
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### Explore Offsets folder
 
@@ -143,51 +192,23 @@ display(dbutils.fs.ls(f"{checkpoint_location}/offsets/"))
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(f"{checkpoint_location}/offsets/223"))
+display(dbutils.fs.ls(f"{checkpoint_location}/offsets/486"))
 
 # COMMAND ----------
 
-dbutils.fs.head(f"{checkpoint_location}/offsets/223")
+dbutils.fs.head(f"{checkpoint_location}/offsets/371")
 
 # COMMAND ----------
 
-import json
-
-def print_pretty_json(data):
-    """
-    Parses and prints JSON fragments or JSON lines in a pretty format.
-
-    Args:
-        data (str): The input string containing JSON or JSON-like fragments.
-
-    Returns:
-        None
-    """
-    try:
-        # Split the input by newlines to handle each fragment separately
-        lines = data.split("\n")
-        
-        for line in lines:
-            # Skip version or non-JSON lines
-            if line.startswith("v"):
-                print(f"Version metadata: {line}")
-                continue
-            
-            # Attempt to parse and pretty-print each line as JSON
-            try:
-                json_obj = json.loads(line)
-                pretty_json = json.dumps(json_obj, indent=4)
-                print(pretty_json)
-            except json.JSONDecodeError:
-                print(f"Invalid JSON line: {line}")
-    
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
 
 # COMMAND ----------
 
-print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/offsets/223"))
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/offsets/599"))
+
+# COMMAND ----------
+
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/offsets/600"))
 
 # COMMAND ----------
 
@@ -200,11 +221,7 @@ display(dbutils.fs.ls(f"{checkpoint_location}/commits/"))
 
 # COMMAND ----------
 
-dbutils.fs.head(f"{checkpoint_location}/commits/36")
-
-# COMMAND ----------
-
-print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/commits/225"))
+print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/commits/600"))
 
 # COMMAND ----------
 
@@ -221,10 +238,6 @@ print_pretty_json(dbutils.fs.head(f"{checkpoint_location}/commits/225"))
 # COMMAND ----------
 
 display(dbutils.fs.ls(f"{checkpoint_location}/metadata/"))
-
-# COMMAND ----------
-
-print_pretty_json(dbutils.fs.head("dbfs:/tmp/_checkpoint/cdg_databricks_workspace_jan_2025.default.sample_data_stock_trades_2/metadata"))
 
 # COMMAND ----------
 
@@ -247,7 +260,7 @@ def read_kafka_strea_and_apply_state():
         .option("minPartitions",6)
         .option("maxOffsetsPerTrigger",100)
         .load()
-        .withWatermark("timestamp","1 minutes")
+        .withWatermark("timestamp","60 minutes")
         .dropDuplicatesWithinWatermark(["partition", "offset"])
         .withColumn("casted_value", expr("CAST(value AS STRING)"))
     )
@@ -260,6 +273,10 @@ def read_kafka_strea_and_apply_state():
 # COMMAND ----------
 
 #display(read_kafka_strea_and_apply_state())
+
+# COMMAND ----------
+
+dbutils.fs.rm(checkpoint_location_prefix_for_stateful_streaming, recurse=True)
 
 # COMMAND ----------
 
@@ -286,16 +303,12 @@ display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/stat
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/state/0/"))
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/state/0/"))
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
@@ -312,27 +325,15 @@ print(f"Shuffle partitions: {spark.conf.get('spark.sql.shuffle.partitions')}")
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/state/0/"))
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/state/0/"))
 
 # COMMAND ----------
 
-display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}_2/state/0/1"))
+display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/state/0/1"))
 
 # COMMAND ----------
 
 display(dbutils.fs.ls(checkpoint_location_prefix_for_stateful_streaming))
-
-# COMMAND ----------
-
-display(dbutils.fs.ls(f"{checkpoint_location_prefix_for_stateful_streaming}/offsets"))
-
-# COMMAND ----------
-
-print_pretty_json(dbutils.fs.head(f"{checkpoint_location_prefix_for_stateful_streaming}/offsets/217"))
-
-# COMMAND ----------
-
-print_pretty_json(dbutils.fs.head(f"{checkpoint_location_prefix_for_stateful_streaming}/off"))
 
 # COMMAND ----------
 
@@ -375,6 +376,10 @@ spark.sql(f"Drop table if exists {target_table}")
 # COMMAND ----------
 
 spark.sql(f"Drop table if exists {target_table_for_stateful_streaming}")
+
+# COMMAND ----------
+
+ dbutils.fs.rm("/tmp/_checkpoint/", True)
 
 # COMMAND ----------
 
