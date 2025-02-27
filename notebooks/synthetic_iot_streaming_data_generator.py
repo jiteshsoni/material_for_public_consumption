@@ -3,6 +3,11 @@
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC CREATE CATALOG soni
+
+# COMMAND ----------
+
 import dbldatagen as dg
 import uuid
 
@@ -13,8 +18,8 @@ from pyspark.sql.functions import expr
 # COMMAND ----------
 
 # Parameterize partitions and rows per second
-PARTITIONS = 4 # Match with number of cores on your cluster
-ROWS_PER_SECOND = 1 * 1000 * 1000 # 1 Million rows per second
+PARTITIONS = 40 # Match with number of cores on your cluster
+ROWS_PER_SECOND = 5 * 100 * 10000  # 1 Million rows per second
 
 
 # COMMAND ----------
@@ -38,7 +43,7 @@ iot_data_schema = StructType([
 dataspec = (
     dg.DataGenerator(spark, name="iot_data", partitions=PARTITIONS)
     .withSchema(iot_data_schema)
-    .withColumnSpec("device_id", percentNulls=0.1, minValue=1000, maxValue=9999, prefix="DEV_", random=True)
+    .withColumnSpec("device_id", minValue=1000, maxValue=9999, prefix="DEV_", random=True)
     .withColumnSpec("event_timestamp", begin="2023-01-01 00:00:00", end="2023-12-31 23:59:59", random=True)
     .withColumnSpec("temperature", minValue=-10.0, maxValue=40.0, random=True)
     .withColumnSpec("humidity", minValue=0.0, maxValue=100.0, random=True)
@@ -74,14 +79,17 @@ streaming_df = (
             "cast(rand() * 360 - 180 as decimal(9,6)))"
         )
     )
-    .withColumn(
-        "data_payload",
-        expr("repeat(uuid(), 22)")  # Add approx. 800 Bytes to construct 1 KB row
+     .withColumn(
+        "event_timestamp_string",
+        expr(
+            "CAST(event_timestamp as string)"
+        )
     )
+
 )
 
 # Uncomment to preview the streaming DataFrame
-# display(streaming_df)
+#display(streaming_df)
 
 # COMMAND ----------
 
@@ -91,14 +99,18 @@ streaming_df = (
 
 # Write the streaming data to a Delta table
 (
-    streaming_df.writeStream
+    streaming_df.where("device_id is not null").writeStream
         .queryName("iot_data_stream")  # Assign a name to the stream
         .outputMode("append")
         .option("checkpointLocation", f"/tmp/dbldatagen/streamingDemo/checkpoint-{uuid.uuid4()}")
-        .toTable("soni.default.iot_data_1kb_rows")
+        .toTable("soni.default.iot_data_to_be_merge")
 )
 
 
 # COMMAND ----------
 
+spark.read.table("soni.default.iot_data_to_be_merge").count()
 
+# COMMAND ----------
+
+1,481,130,000
