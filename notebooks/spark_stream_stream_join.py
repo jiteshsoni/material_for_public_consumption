@@ -16,6 +16,10 @@ spark.conf.set(
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 !pip install faker_vehicle
 !pip install faker
 
@@ -245,7 +249,7 @@ stream_write_to_vehicle_table()
 # MAGIC %md
 # MAGIC #### Create a Geo Table
 # MAGIC We have added a filter when we write to this table. This would be useful when we emulate the left join scenario.
-# MAGIC 
+# MAGIC
 # MAGIC Filter:  ```where("value like '1%' ")```
 
 # COMMAND ----------
@@ -574,9 +578,9 @@ spark.read.table(f"{schema_name}.{table_name_stream_stream_left_join}").count()
 
 # MAGIC %md
 # MAGIC ##### You will find that some records could not match are not being released which is expected.
-# MAGIC 
+# MAGIC
 # MAGIC [The outer NULL results will be generated with a delay that depends on the specified watermark delay and the time range condition. This is because the engine has to wait for that long to ensure there were no matches and there will be no more matches in future.](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#outer-joins-with-watermarking)
-# MAGIC 
+# MAGIC
 # MAGIC **Watermark will advance once new data is pushed to it**
 
 # COMMAND ----------
