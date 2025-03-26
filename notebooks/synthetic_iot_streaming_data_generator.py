@@ -17,6 +17,10 @@ from pyspark.sql.functions import expr
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # Parameterize partitions and rows per second
 PARTITIONS = 40 # Match with number of cores on your cluster
 ROWS_PER_SECOND = 5 * 100 * 10000  # 1 Million rows per second
