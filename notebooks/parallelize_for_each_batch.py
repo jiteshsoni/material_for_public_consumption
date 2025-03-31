@@ -32,13 +32,14 @@ source_table = f"soni.default.synthetic_iot_data"
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Create a Streaming Source. It could be Kafka, Kinesis, S3, ADLS, Delta. For my case, I am considering Delta
+display(spark.sql(f"""
+                  CREATE DATABASE IF NOT EXISTS {catalog_database};
+                  """))
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC CREATE DATABASE soni.d
+# MAGIC %md
+# MAGIC ## Create a Streaming Source. It could be Kafka, Kinesis, S3, ADLS, Delta. For my case, I am considering Delta
 
 # COMMAND ----------
 
@@ -46,7 +47,7 @@ from pyspark.sql.functions import col, when, current_timestamp, rand
 
 stream_source_df = (
     spark.readStream.option("maxFilesPerTrigger", 500)
-    .option("startingVersion", "10000")
+    .option("startingVersion", "10")
     .table(source_table)
 )
 
@@ -76,11 +77,6 @@ def process_table(device_type: str, batch_id: int, catalog_database: str, input_
     
     # Build the full table name.
     table_full_name = f"{catalog_database}.{device_type}"
-
-    # Inflict an error code column to simulate a failure.
-    if device_type == 'Sensor':
-        table_full_name = f"{catalog_database}.$${device_type}"
-
     
     # Save the filtered DataFrame as a table with additional options.
     filtered_df.write.mode("append") \
