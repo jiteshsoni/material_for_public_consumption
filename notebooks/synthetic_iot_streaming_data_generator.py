@@ -4,7 +4,7 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE CATALOG soni
+# MAGIC CREATE CATALOG  if not exists soni
 
 # COMMAND ----------
 
@@ -48,7 +48,7 @@ dataspec = (
     dg.DataGenerator(spark, name="iot_data", partitions=PARTITIONS)
     .withSchema(iot_data_schema)
     .withColumnSpec("device_id", minValue=1000, maxValue=9999, prefix="DEV_", random=True)
-    .withColumnSpec("event_timestamp", begin="2023-01-01 00:00:00", end="2023-12-31 23:59:59", random=True)
+    .withColumnSpec("event_timestamp", begin="2025-01-01 00:00:00", end="2025-06-01 23:59:59", random=True)
     .withColumnSpec("temperature", minValue=-10.0, maxValue=40.0, random=True)
     .withColumnSpec("humidity", minValue=0.0, maxValue=100.0, random=True)
     .withColumnSpec("pressure", minValue=900.0, maxValue=1100.0, random=True)
@@ -88,6 +88,9 @@ streaming_df = (
         expr(
             "CAST(event_timestamp as string)"
         )
+    ).withColumn(
+        "event_timestamp",
+        expr("current_timestamp() - make_interval(0, 0, 0, 0, 0, 0, floor(rand() * 120))")
     )
 
 )
@@ -106,7 +109,7 @@ streaming_df = (
     streaming_df.where("device_id is not null").writeStream
         .queryName("iot_data_stream")  # Assign a name to the stream
         .outputMode("append")
-        .option("checkpointLocation", f"/tmp/dbldatagen/streamingDemo/checkpoint-{uuid.uuid4()}")
+        .option("checkpointLocation", f"/Volumes/soni/default/checkpoints/checkpoint-{uuid.uuid4()}")
         .toTable("soni.default.iot_data_to_be_merge")
 )
 
