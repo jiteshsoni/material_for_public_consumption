@@ -200,31 +200,66 @@ display(streaming_df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Update Dimension Table with While Loop
-# MAGIC Run this cell to start continuously updating the DIM_DEVICE_TYPE table every minute
+# MAGIC ### Update Dimension Table with Spark Streaming
+# MAGIC Run this cell to start a streaming job that updates the DIM_DEVICE_TYPE table every minute
 
 # COMMAND ----------
 
-# Simple while loop to update dimension table every minute
-print(f"🚀 Starting {DIM_TABLE_NAME} update loop")
+# Create a streaming DataFrame that triggers every minute
+minute_trigger_df = (
+    spark.readStream
+    .format("rate")
+    .option("rowsPerSecond", 1/60)  # 1 row per minute
+    .load()
+    .select(lit("update_trigger").alias("trigger"))
+)
+
+# Define the streaming function for dimension updates
+def process_dim_updates(df, epoch_id):
+    """Process function called every minute to update dimension table"""
+    print(f"🔄 Processing epoch {epoch_id} at {datetime.now()}")
+    update_device_dim_table()
+
+# Start the streaming query
+print(f"🚀 Starting {DIM_TABLE_NAME} streaming update job")
 print(f"⏱️  Updates every {UPDATE_INTERVAL} seconds")
-print("⏹️  Press Ctrl+C to stop the loop")
+print("⏹️  Use stream management section to stop")
 print("=" * 50)
 
-try:
-    while True:
-        update_device_dim_table()
-        print(f"⏳ Waiting {UPDATE_INTERVAL} seconds for next update...")
-        print("-" * 30)
-        time.sleep(UPDATE_INTERVAL)
-except KeyboardInterrupt:
-    print("🛑 Update loop stopped by user")
+dim_update_query = (
+    minute_trigger_df.writeStream
+    .queryName("dim_device_type_updater")
+    .outputMode("update")
+    .foreachBatch(process_dim_updates)
+    .trigger(processingTime=f"{UPDATE_INTERVAL} seconds")  # Process every 60 seconds
+    .start()
+)
+
+print(f"✅ Streaming job started successfully!")
+print(f"📊 Stream Name: {dim_update_query.name}")
+print(f"🆔 Stream ID: {dim_update_query.id}")
+print(f"⚡ Status: {dim_update_query.status}")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 📈 Monitoring & Management
 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Check Current Dimension Table State
+
+# COMMAND ----------
+
+# Check current dimension table
+try:
+    current_dim = spark.table(DIM_TABLE_NAME)
+    print(f"📊 Current {DIM_TABLE_NAME} state:")
+    display(current_dim)
+except Exception as e:
+    print(f"❌ Table {DIM_TABLE_NAME} does not exist yet. Run the streaming update first.")
+    print(f"Error: {e}")
 
 # COMMAND ----------
 
@@ -243,6 +278,18 @@ if active_streams:
         print(f"     Status: {stream.status}")
 else:
     print("   No active streams found")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Stop Dimension Update Stream
+
+# COMMAND ----------
+
+# Stop dimension update stream (uncomment when needed)
+# print("🛑 Stopping dimension update stream...")
+# dim_update_query.stop()
+# print("✅ Dimension update stream stopped")
 
 # COMMAND ----------
 
