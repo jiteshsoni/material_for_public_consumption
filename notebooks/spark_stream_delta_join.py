@@ -1,9 +1,9 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Synthetic IoT Data Generator with Delta Dimension Table
-# MAGIC 
+# MAGIC
 # MAGIC **Based on:** https://www.canadiandataguy.com/p/how-to-generate-1tb-of-synthetic
-# MAGIC 
+# MAGIC
 # MAGIC **Features:**
 # MAGIC - Generates synthetic IoT data at 6 rows every 2 seconds (3 rows per second)
 # MAGIC - Creates and continuously updates a DIM_DEVICE_TYPE dimension table
@@ -293,7 +293,7 @@ try:
         .outputMode("update")
         .foreachBatch(process_dim_updates_proper)
         .trigger(processingTime=f"{UPDATE_INTERVAL} seconds")  # Process every 60 seconds
-        .option("checkpointLocation", "/tmp/dim_update_checkpoint")  # Add checkpoint for reliability
+        .option("checkpointLocation", "/Volumes/soni/default/checkpoints/dim_update_checkpoint/{uuid.uuid4()}")  # Add checkpoint for reliability
         .start()
     )
     
