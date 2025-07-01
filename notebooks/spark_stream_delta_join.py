@@ -209,7 +209,7 @@ display(streaming_df)
 minute_trigger_df = (
     spark.readStream
     .format("rate")
-    .option("rowsPerSecond", 1/60)  # 1 row per minute
+    .option("rowsPerSecond", 1)  # 1 row per second (will be controlled by trigger interval)
     .load()
     .select(lit("update_trigger").alias("trigger"))
 )
