@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Synthetic IoT Data Generator
 # MAGIC Based on: https://www.canadiandataguy.com/p/how-to-generate-1tb-of-synthetic
-# MAGIC 
+# MAGIC
 # MAGIC This notebook generates synthetic IoT data at a rate of 6 rows every 2 seconds (3 rows per second)
 
 # COMMAND ----------
@@ -48,7 +48,7 @@ iot_data_schema = StructType([
 dataspec = (
     dg.DataGenerator(spark, name="iot_data", partitions=PARTITIONS)
     .withSchema(iot_data_schema)
-    .withColumnSpec("device_id", percentNulls=0.1, minValue=1000, maxValue=9999, prefix="DEV_", random=True)
+    .withColumnSpec("device_id", percentNulls=0, minValue=1000, maxValue=9999, prefix="DEV_", random=True)
     .withColumnSpec("temperature", minValue=-10.0, maxValue=40.0, random=True)
     .withColumnSpec("humidity", minValue=0.0, maxValue=100.0, random=True)
     .withColumnSpec("pressure", minValue=900.0, maxValue=1100.0, random=True)
@@ -68,10 +68,8 @@ streaming_df = (
             'rowsPerSecond': ROWS_PER_SECOND,
         }
     )
-    .withColumn(
-        "event_timestamp",
-        expr("current_timestamp() - interval (rand() * 2) seconds")  # Random timestamp within last 2 seconds
-    )
+    .withColumn("event_timestamp", 
+                expr("current_timestamp() - make_interval(0, 0, 0, 0, 0, 0, floor(rand() * 2))"))
     .withColumn(
         "firmware_version",
         expr(
@@ -93,6 +91,10 @@ streaming_df = (
 
 # Display the schema
 streaming_df.printSchema()
+
+# COMMAND ----------
+
+display(streaming_df)
 
 # COMMAND ----------
 
@@ -154,4 +156,5 @@ for stream in active_streams:
 #     stream.stop()
 
 # COMMAND ----------
+
 
