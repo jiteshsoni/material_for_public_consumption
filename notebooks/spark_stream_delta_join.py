@@ -49,7 +49,7 @@ ROWS_PER_SECOND = 3     # 6 rows every 2 seconds
 UPDATE_INTERVAL = 60    # Update dimension table every 60 seconds
 
 # Table names
-DIM_TABLE_NAME = "default.DIM_DEVICE_TYPE"
+DIM_TABLE_NAME = "soni.default.DIM_DEVICE_TYPE"
 
 print(f"📊 IoT Data Generation Config:")
 print(f"   - Rows per second: {ROWS_PER_SECOND}")
@@ -217,8 +217,48 @@ minute_trigger_df = (
 # Define the streaming function for dimension updates
 def process_dim_updates(df, epoch_id):
     """Process function called every minute to update dimension table"""
+    from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
+    from pyspark.sql.functions import current_timestamp
+    import random
+    from datetime import datetime
+    
+    # Access Spark session from the DataFrame (Spark Connect requirement)
+    spark_session = df.sparkSession
+    
+    # Define schema inside function to avoid serialization issues
+    device_dim_schema = StructType([
+        StructField("device_type", StringType(), False),
+        StructField("power_consumption_watts", IntegerType(), False),
+        StructField("updated_at", TimestampType(), False)
+    ])
+    
+    # Define table name inside function
+    table_name = "default.DIM_DEVICE_TYPE"
+    
     print(f"🔄 Processing epoch {epoch_id} at {datetime.now()}")
-    update_device_dim_table()
+    
+    # Generate random power consumption data for each device type
+    updated_data = [
+        ("Sensor", random.randint(1, 5), current_timestamp()),          # 1-5W random
+        ("Actuator", random.randint(10, 25), current_timestamp()),      # 10-25W random  
+        ("Gateway", random.randint(20, 40), current_timestamp()),       # 20-40W random
+        ("Controller", random.randint(8, 15), current_timestamp())      # 8-15W random
+    ]
+    
+    # Create DataFrame using the session from df parameter
+    updated_df = spark_session.createDataFrame(updated_data, device_dim_schema)
+    
+    # Overwrite the Delta table
+    updated_df.write \
+        .format("delta") \
+        .mode("overwrite") \
+        .saveAsTable(table_name)
+    
+    print(f"🔄 Overwritten {table_name} at {datetime.now()}")
+    
+    # Show updated data using spark session from df
+    updated_table = spark_session.table(table_name)
+    updated_table.show(10, truncate=False)
 
 # Start the streaming query
 print(f"🚀 Starting {DIM_TABLE_NAME} streaming update job")
