@@ -200,90 +200,52 @@ display(streaming_df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Update Dimension Table with Proper foreachBatch
-# MAGIC This implementation follows Spark Connect best practices to avoid serialization issues
+# MAGIC ### Generate Streaming Dimension Data with dbldatagen
+# MAGIC Create exactly 4 rows streaming for the dimension table using dbldatagen
 
 # COMMAND ----------
 
-# Create a streaming DataFrame that triggers every minute
-minute_trigger_df = (
-    spark.readStream
-    .format("rate")
-    .option("rowsPerSecond", 1)  # 1 row per second (will be controlled by trigger interval)
-    .load()
-    .select(lit("update_trigger").alias("trigger"))
+# Create dimension data generator with exactly 4 rows
+dim_dataspec = (
+    dg.DataGenerator(spark, name="device_dim_data", rows=4, partitions=1)
+    .withSchema(device_dim_schema)
+    .withColumnSpec("device_type", values=["Sensor", "Actuator", "Gateway", "Controller"], random=False)
+    .withColumnSpec("power_consumption_watts", minValue=1, maxValue=50, random=True)
+    .withColumnSpec("updated_at", expr="current_timestamp()", random=False)
 )
 
-# Define the streaming function following Spark Connect best practices
-def process_dim_updates_proper(df, epoch_id):
-    """
-    Proper foreachBatch implementation for Spark Connect
-    All dependencies are defined inside the function to avoid serialization issues
-    """
-    # Import all dependencies inside the function
-    from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
-    from pyspark.sql.functions import current_timestamp
-    import random
-    from datetime import datetime
-    
-    # Check if DataFrame is empty (recommended by Databricks)
-    if df.isEmpty:
-        print(f"⚠️  Empty DataFrame in epoch {epoch_id}, skipping...")
-        return
-    
-    # Access Spark session from the DataFrame parameter (Spark Connect requirement)
-    spark_session = df.sparkSession
-    
-    # Define all variables inside function (no external references)
-    table_name = "soni.default.DIM_DEVICE_TYPE"  # Hardcoded to avoid external reference
-    
-    # Define schema inside function
-    device_dim_schema = StructType([
-        StructField("device_type", StringType(), False),
-        StructField("power_consumption_watts", IntegerType(), False),
-        StructField("updated_at", TimestampType(), False)
-    ])
-    
-    print(f"🔄 Processing epoch {epoch_id} at {datetime.now()}")
-    
-    try:
-        # Generate random power consumption data for each device type
-        updated_data = [
-            ("Sensor", random.randint(1, 5), current_timestamp()),          # 1-5W random
-            ("Actuator", random.randint(10, 25), current_timestamp()),      # 10-25W random  
-            ("Gateway", random.randint(20, 40), current_timestamp()),       # 20-40W random
-            ("Controller", random.randint(8, 15), current_timestamp())      # 8-15W random
-        ]
-        
-        # Create DataFrame using the session from df parameter
-        updated_df = spark_session.createDataFrame(updated_data, device_dim_schema)
-        
-        # Overwrite the Delta table
-        updated_df.write \
-            .format("delta") \
-            .mode("overwrite") \
-            .saveAsTable(table_name)
-        
-        print(f"✅ Successfully overwritten {table_name} at {datetime.now()}")
-        
-        # Show updated data using spark session from df
-        updated_table = spark_session.table(table_name)
-        row_count = updated_table.count()
-        print(f"📊 Table now contains {row_count} rows")
-        
-        # Show sample data
-        print("📋 Sample data:")
-        updated_table.show(4, truncate=False)
-        
-    except Exception as e:
-        print(f"❌ Error in epoch {epoch_id}: {str(e)}")
-        # Re-raise to fail the streaming job for investigation
-        raise e
+# Generate the dimension data
+print("🎯 Generating 4 rows of device dimension data...")
+dim_fake_df = dim_dataspec.build(
+        withStreaming=True,
+        options={
+            'rowsPerSecond': ROWS_PER_SECOND,
+        }
+    )
 
-# Start the streaming query with proper error handling
-print(f"🚀 Starting {DIM_TABLE_NAME} streaming update job")
-print(f"⏱️  Updates every {UPDATE_INTERVAL} seconds") 
-print("⏹️  Use stream management section to stop")
+# Show the generated data
+print("📊 Generated dimension data:")
+display(dim_fake_df)
+
+print("✅ Streaming dimension data generator created")
+
+# COMMAND ----------
+
+# Display the streaming dimension schema
+print("📋 Dimension Streaming Data Schema:")
+dim_fake_df.printSchema()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Write Streaming Dimension Data to Delta Table
+# MAGIC Stream the 4 rows to Delta table with 1 minute trigger
+
+# COMMAND ----------
+
+# Start streaming query to write dimension data every minute
+print(f"🚀 Starting streaming dimension data to {DIM_TABLE_NAME}")
+print(f"⏱️  Updates every 1 minute")
 print("=" * 50)
 
 try:
@@ -309,14 +271,16 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Manual Dimension Table Update (Fallback)
-# MAGIC Run this cell manually if the streaming approach has issues
+# MAGIC ### Manual Dimension Update (Alternative)
+# MAGIC Generate sample dimension data manually for testing
 
 # COMMAND ----------
 
-# Simple function call without streaming complexity
-print(f"🔄 Updating {DIM_TABLE_NAME} at {datetime.now()}")
-update_device_dim_table()
+# Generate sample dimension data for preview
+sample_dim_df = dim_dataspec.build()
+
+print("📊 Sample dimension data:")
+display(sample_dim_df)
 
 # COMMAND ----------
 
