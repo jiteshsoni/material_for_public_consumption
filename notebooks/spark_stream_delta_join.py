@@ -200,8 +200,8 @@ display(streaming_df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Update Dimension Table with Spark Streaming
-# MAGIC Run this cell to start a streaming job that updates the DIM_DEVICE_TYPE table every minute
+# MAGIC ### Update Dimension Table with Proper foreachBatch
+# MAGIC This implementation follows Spark Connect best practices to avoid serialization issues
 
 # COMMAND ----------
 
@@ -214,71 +214,109 @@ minute_trigger_df = (
     .select(lit("update_trigger").alias("trigger"))
 )
 
-# Define the streaming function for dimension updates
-def process_dim_updates(df, epoch_id):
-    """Process function called every minute to update dimension table"""
+# Define the streaming function following Spark Connect best practices
+def process_dim_updates_proper(df, epoch_id):
+    """
+    Proper foreachBatch implementation for Spark Connect
+    All dependencies are defined inside the function to avoid serialization issues
+    """
+    # Import all dependencies inside the function
     from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
     from pyspark.sql.functions import current_timestamp
     import random
     from datetime import datetime
     
-    # Access Spark session from the DataFrame (Spark Connect requirement)
+    # Check if DataFrame is empty (recommended by Databricks)
+    if df.isEmpty:
+        print(f"⚠️  Empty DataFrame in epoch {epoch_id}, skipping...")
+        return
+    
+    # Access Spark session from the DataFrame parameter (Spark Connect requirement)
     spark_session = df.sparkSession
     
-    # Define schema inside function to avoid serialization issues
+    # Define all variables inside function (no external references)
+    table_name = "soni.default.DIM_DEVICE_TYPE"  # Hardcoded to avoid external reference
+    
+    # Define schema inside function
     device_dim_schema = StructType([
         StructField("device_type", StringType(), False),
         StructField("power_consumption_watts", IntegerType(), False),
         StructField("updated_at", TimestampType(), False)
     ])
     
-    # Define table name inside function
-    table_name = "default.DIM_DEVICE_TYPE"
-    
     print(f"🔄 Processing epoch {epoch_id} at {datetime.now()}")
     
-    # Generate random power consumption data for each device type
-    updated_data = [
-        ("Sensor", random.randint(1, 5), current_timestamp()),          # 1-5W random
-        ("Actuator", random.randint(10, 25), current_timestamp()),      # 10-25W random  
-        ("Gateway", random.randint(20, 40), current_timestamp()),       # 20-40W random
-        ("Controller", random.randint(8, 15), current_timestamp())      # 8-15W random
-    ]
-    
-    # Create DataFrame using the session from df parameter
-    updated_df = spark_session.createDataFrame(updated_data, device_dim_schema)
-    
-    # Overwrite the Delta table
-    updated_df.write \
-        .format("delta") \
-        .mode("overwrite") \
-        .saveAsTable(table_name)
-    
-    print(f"🔄 Overwritten {table_name} at {datetime.now()}")
-    
-    # Show updated data using spark session from df
-    updated_table = spark_session.table(table_name)
-    updated_table.show(10, truncate=False)
+    try:
+        # Generate random power consumption data for each device type
+        updated_data = [
+            ("Sensor", random.randint(1, 5), current_timestamp()),          # 1-5W random
+            ("Actuator", random.randint(10, 25), current_timestamp()),      # 10-25W random  
+            ("Gateway", random.randint(20, 40), current_timestamp()),       # 20-40W random
+            ("Controller", random.randint(8, 15), current_timestamp())      # 8-15W random
+        ]
+        
+        # Create DataFrame using the session from df parameter
+        updated_df = spark_session.createDataFrame(updated_data, device_dim_schema)
+        
+        # Overwrite the Delta table
+        updated_df.write \
+            .format("delta") \
+            .mode("overwrite") \
+            .saveAsTable(table_name)
+        
+        print(f"✅ Successfully overwritten {table_name} at {datetime.now()}")
+        
+        # Show updated data using spark session from df
+        updated_table = spark_session.table(table_name)
+        row_count = updated_table.count()
+        print(f"📊 Table now contains {row_count} rows")
+        
+        # Show sample data
+        print("📋 Sample data:")
+        updated_table.show(4, truncate=False)
+        
+    except Exception as e:
+        print(f"❌ Error in epoch {epoch_id}: {str(e)}")
+        # Re-raise to fail the streaming job for investigation
+        raise e
 
-# Start the streaming query
+# Start the streaming query with proper error handling
 print(f"🚀 Starting {DIM_TABLE_NAME} streaming update job")
-print(f"⏱️  Updates every {UPDATE_INTERVAL} seconds")
+print(f"⏱️  Updates every {UPDATE_INTERVAL} seconds") 
 print("⏹️  Use stream management section to stop")
 print("=" * 50)
 
-dim_update_query = (
-    minute_trigger_df.writeStream
-    .queryName("dim_device_type_updater")
-    .outputMode("update")
-    .foreachBatch(process_dim_updates)
-    .trigger(processingTime=f"{UPDATE_INTERVAL} seconds")  # Process every 60 seconds
-    .start()
-)
+try:
+    dim_update_query = (
+        minute_trigger_df.writeStream
+        .queryName("dim_device_type_updater_v2")
+        .outputMode("update")
+        .foreachBatch(process_dim_updates_proper)
+        .trigger(processingTime=f"{UPDATE_INTERVAL} seconds")  # Process every 60 seconds
+        .option("checkpointLocation", "/tmp/dim_update_checkpoint")  # Add checkpoint for reliability
+        .start()
+    )
+    
+    print(f"✅ Streaming job started successfully!")
+    print(f"📊 Stream Name: {dim_update_query.name}")
+    print(f"🆔 Stream ID: {dim_update_query.id}")
+    print(f"⚡ Status: {dim_update_query.status}")
+    
+except Exception as e:
+    print(f"❌ Failed to start streaming job: {str(e)}")
+    print("💡 If you get serialization errors, try the manual update approach below")
 
-print(f"✅ Streaming job started successfully!")
-print(f"📊 Stream Name: {dim_update_query.name}")
-print(f"🆔 Stream ID: {dim_update_query.id}")
-print(f"⚡ Status: {dim_update_query.status}")
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Manual Dimension Table Update (Fallback)
+# MAGIC Run this cell manually if the streaming approach has issues
+
+# COMMAND ----------
+
+# Simple function call without streaming complexity
+print(f"🔄 Updating {DIM_TABLE_NAME} at {datetime.now()}")
+update_device_dim_table()
 
 # COMMAND ----------
 
