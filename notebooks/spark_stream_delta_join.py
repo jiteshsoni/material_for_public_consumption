@@ -49,7 +49,6 @@ dataspec = (
     dg.DataGenerator(spark, name="iot_data", partitions=PARTITIONS)
     .withSchema(iot_data_schema)
     .withColumnSpec("device_id", percentNulls=0.1, minValue=1000, maxValue=9999, prefix="DEV_", random=True)
-    .withColumnSpec("event_timestamp", begin="2023-01-01 00:00:00", end="2023-12-31 23:59:59", random=True)
     .withColumnSpec("temperature", minValue=-10.0, maxValue=40.0, random=True)
     .withColumnSpec("humidity", minValue=0.0, maxValue=100.0, random=True)
     .withColumnSpec("pressure", minValue=900.0, maxValue=1100.0, random=True)
@@ -70,6 +69,10 @@ streaming_df = (
         }
     )
     .withColumn(
+        "event_timestamp",
+        expr("current_timestamp() - interval (rand() * 2) seconds")  # Random timestamp within last 2 seconds
+    )
+    .withColumn(
         "firmware_version",
         expr(
             "concat('v', cast(floor(rand() * 10) as string), '.', "
@@ -83,10 +86,6 @@ streaming_df = (
             "concat(cast(rand() * 180 - 90 as decimal(8,6)), ',', "
             "cast(rand() * 360 - 180 as decimal(9,6)))"
         )
-    )
-    .withColumn(
-        "data_payload",
-        expr("repeat(uuid(), 22)")  # Add approx. 800 Bytes to construct 1 KB row
     )
 )
 
@@ -124,24 +123,13 @@ streaming_df.printSchema()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Option 2: Display Stream to Console (for testing)
-# MAGIC This will show the generated data in the console
+# MAGIC ## Visualize the Stream
+# MAGIC Display the streaming data directly
 
 # COMMAND ----------
 
-# Display stream to console for testing
-console_query = (
-    streaming_df.writeStream
-    .queryName("synthetic_iot_console_stream")
-    .outputMode("append")
-    .format("console")
-    .option("truncate", False)
-    .option("numRows", 10)
-    .trigger(processingTime="2 seconds")  # Process every 2 seconds
-)
-
-# Start the stream
-console_stream = console_query.start()
+# Visualize the streaming data
+display(streaming_df)
 
 # COMMAND ----------
 
@@ -167,35 +155,3 @@ for stream in active_streams:
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Sample Data Preview
-# MAGIC Generate a batch of sample data to preview the structure
-
-# COMMAND ----------
-
-# Generate sample batch data for preview
-sample_df = dataspec.build()
-sample_with_extras = (
-    sample_df
-    .withColumn(
-        "firmware_version",
-        expr(
-            "concat('v', cast(floor(rand() * 10) as string), '.', "
-            "cast(floor(rand() * 10) as string), '.', "
-            "cast(floor(rand() * 10) as string))"
-        )
-    )
-    .withColumn(
-        "location",
-        expr(
-            "concat(cast(rand() * 180 - 90 as decimal(8,6)), ',', "
-            "cast(rand() * 360 - 180 as decimal(9,6)))"
-        )
-    )
-    .withColumn(
-        "data_payload",
-        expr("repeat(uuid(), 22)")  # Add approx. 800 Bytes to construct 1 KB row
-    )
-)
-
-display(sample_with_extras.limit(10))
