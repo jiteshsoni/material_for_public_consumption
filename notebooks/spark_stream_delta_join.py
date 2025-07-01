@@ -1,9 +1,18 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Synthetic IoT Data Generator
-# MAGIC Based on: https://www.canadiandataguy.com/p/how-to-generate-1tb-of-synthetic
-# MAGIC
-# MAGIC This notebook generates synthetic IoT data at a rate of 6 rows every 2 seconds (3 rows per second)
+# MAGIC # Synthetic IoT Data Generator with Delta Dimension Table
+# MAGIC 
+# MAGIC **Based on:** https://www.canadiandataguy.com/p/how-to-generate-1tb-of-synthetic
+# MAGIC 
+# MAGIC **Features:**
+# MAGIC - Generates synthetic IoT data at 6 rows every 2 seconds (3 rows per second)
+# MAGIC - Creates and continuously updates a DIM_DEVICE_TYPE dimension table
+# MAGIC - Random power consumption values for realistic IoT device simulation
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 📦 Install Dependencies
 
 # COMMAND ----------
 
@@ -11,25 +20,51 @@
 
 # COMMAND ----------
 
-# Setup and Imports
+# MAGIC %md
+# MAGIC ## 📚 Imports
+
+# COMMAND ----------
+
+# Core imports
 import dbldatagen as dg
 import uuid
+import time
+import random
+from datetime import datetime
 
+# PySpark imports
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DoubleType, IntegerType
-from pyspark.sql.functions import expr
+from pyspark.sql.functions import expr, current_timestamp, lit
 
 # COMMAND ----------
 
-# Parameters - Generate 6 rows every 2 seconds = 3 rows per second
-PARTITIONS = 2  # Small number of partitions for slower generation
-ROWS_PER_SECOND = 3  # 6 rows every 2 seconds
-
-print(f"Configured to generate {ROWS_PER_SECOND} rows per second")
-print(f"This equals {ROWS_PER_SECOND * 2} rows every 2 seconds")
+# MAGIC %md
+# MAGIC ## ⚙️ Configuration
 
 # COMMAND ----------
 
-# Schema Definition - IoT Data Schema
+# Streaming configuration
+PARTITIONS = 2          # Small number of partitions for slower generation
+ROWS_PER_SECOND = 3     # 6 rows every 2 seconds
+UPDATE_INTERVAL = 60    # Update dimension table every 60 seconds
+
+# Table names
+DIM_TABLE_NAME = "default.DIM_DEVICE_TYPE"
+
+print(f"📊 IoT Data Generation Config:")
+print(f"   - Rows per second: {ROWS_PER_SECOND}")
+print(f"   - Partitions: {PARTITIONS}")
+print(f"   - Dimension update interval: {UPDATE_INTERVAL} seconds")
+print(f"   - Dimension table: {DIM_TABLE_NAME}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 🏗️ Schema Definitions
+
+# COMMAND ----------
+
+# IoT streaming data schema
 iot_data_schema = StructType([
     StructField("device_id", StringType(), False),
     StructField("event_timestamp", TimestampType(), False),
@@ -42,9 +77,60 @@ iot_data_schema = StructType([
     StructField("signal_strength", IntegerType(), False)
 ])
 
+# Device dimension table schema
+device_dim_schema = StructType([
+    StructField("device_type", StringType(), False),
+    StructField("power_consumption_watts", IntegerType(), False),
+    StructField("updated_at", TimestampType(), False)
+])
+
+print("✅ Schemas defined successfully")
+
 # COMMAND ----------
 
-# Data Generator Specification
+# MAGIC %md
+# MAGIC ## 🔧 Function Definitions
+
+# COMMAND ----------
+
+def update_device_dim_table():
+    """Update device dimension table with random power consumption values"""
+    
+    # Generate random power consumption data for each device type
+    updated_data = [
+        ("Sensor", random.randint(1, 5), current_timestamp()),          # 1-5W random
+        ("Actuator", random.randint(10, 25), current_timestamp()),      # 10-25W random  
+        ("Gateway", random.randint(20, 40), current_timestamp()),       # 20-40W random
+        ("Controller", random.randint(8, 15), current_timestamp())      # 8-15W random
+    ]
+    
+    # Create DataFrame
+    updated_df = spark.createDataFrame(updated_data, device_dim_schema)
+    
+    # Overwrite the Delta table
+    updated_df.write \
+        .format("delta") \
+        .mode("overwrite") \
+        .saveAsTable(DIM_TABLE_NAME)
+    
+    print(f"🔄 Overwritten {DIM_TABLE_NAME} at {datetime.now()}")
+    
+    # Show updated data
+    updated_table = spark.table(DIM_TABLE_NAME)
+    display(updated_table)
+    
+    return updated_table
+
+print("✅ Functions defined successfully")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 📊 IoT Data Generation Setup
+
+# COMMAND ----------
+
+# Create data generator specification
 dataspec = (
     dg.DataGenerator(spark, name="iot_data", partitions=PARTITIONS)
     .withSchema(iot_data_schema)
@@ -58,9 +144,11 @@ dataspec = (
     .withColumnSpec("signal_strength", minValue=-100, maxValue=0, random=True)
 )
 
+print("✅ Data generator specification created")
+
 # COMMAND ----------
 
-# Create Streaming DataFrame
+# Create streaming DataFrame
 streaming_df = (
     dataspec.build(
         withStreaming=True,
@@ -87,73 +175,88 @@ streaming_df = (
     )
 )
 
-# COMMAND ----------
-
-# Display the schema
+# Display schema
+print("📋 IoT Streaming Data Schema:")
 streaming_df.printSchema()
 
+print("✅ Streaming DataFrame created successfully")
+
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## 🎯 Data Visualization & Execution
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Visualize IoT Streaming Data
+# MAGIC Run this cell to see the live IoT data stream
+
+# COMMAND ----------
+
+# Visualize the streaming IoT data
 display(streaming_df)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Option 1: Write to Delta Table
-# MAGIC Uncomment the code below to write streaming data to a Delta table
+# MAGIC ### Update Dimension Table with While Loop
+# MAGIC Run this cell to start continuously updating the DIM_DEVICE_TYPE table every minute
 
 # COMMAND ----------
 
-# # Write to Delta Table
-# checkpoint_location = f"/tmp/synthetic_iot_data/checkpoint-{uuid.uuid4()}"
-# table_name = "default.synthetic_iot_data_slow"
+# Simple while loop to update dimension table every minute
+print(f"🚀 Starting {DIM_TABLE_NAME} update loop")
+print(f"⏱️  Updates every {UPDATE_INTERVAL} seconds")
+print("⏹️  Press Ctrl+C to stop the loop")
+print("=" * 50)
 
-# query = (
-#     streaming_df.writeStream
-#     .queryName("synthetic_iot_data_stream")
-#     .outputMode("append")
-#     .option("checkpointLocation", checkpoint_location)
-#     .toTable(table_name)
-# )
-
-# # Display stream information
-# print(f"Stream started: {query.name}")
-# print(f"Stream ID: {query.id}")
-# print(f"Writing to table: {table_name}")
-# print(f"Checkpoint location: {checkpoint_location}")
+try:
+    while True:
+        update_device_dim_table()
+        print(f"⏳ Waiting {UPDATE_INTERVAL} seconds for next update...")
+        print("-" * 30)
+        time.sleep(UPDATE_INTERVAL)
+except KeyboardInterrupt:
+    print("🛑 Update loop stopped by user")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Visualize the Stream
-# MAGIC Display the streaming data directly
+# MAGIC ## 📈 Monitoring & Management
 
-# COMMAND ----------
-
-# Visualize the streaming data
-display(streaming_df)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Stream Management
-# MAGIC Use the commands below to manage your streams
+# MAGIC ### Check Active Streams
 
 # COMMAND ----------
 
 # Check active streams
 active_streams = spark.streams.active
-print(f"Number of active streams: {len(active_streams)}")
+print(f"📡 Active Streams: {len(active_streams)}")
 
-for stream in active_streams:
-    print(f"Stream: {stream.name}, ID: {stream.id}, Status: {stream.status}")
+if active_streams:
+    for stream in active_streams:
+        print(f"   - {stream.name}: {stream.id}")
+        print(f"     Status: {stream.status}")
+else:
+    print("   No active streams found")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Stop All Streams (if needed)
 
 # COMMAND ----------
 
 # Stop all streams (uncomment when needed)
+# print("🛑 Stopping all active streams...")
 # for stream in spark.streams.active:
-#     print(f"Stopping stream: {stream.name}")
+#     print(f"   Stopping: {stream.name}")
 #     stream.stop()
+# print("✅ All streams stopped")
 
 # COMMAND ----------
 
