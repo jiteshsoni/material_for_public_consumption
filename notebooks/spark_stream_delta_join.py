@@ -20,6 +20,85 @@
 
 # COMMAND ----------
 
+import dbldatagen as dg
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
+from delta.tables import DeltaTable
+import time
+
+DIM_TABLE_NAME = "soni.default.DIM_DEVICE_TYPE"
+
+
+# COMMAND ----------
+
+# Configuration
+ROWS_PER_SECOND = 4  # Since we want 4 rows every minute
+#DELTA_TABLE_PATH = "/path/to/your/delta/table"  # Update this path
+TRIGGER_INTERVAL = "10 seconds"  # 1 minute
+
+# Define the schema for device dimension data
+device_dim_schema = StructType([
+    StructField("device_type", StringType(), True),
+    StructField("power_consumption_watts", IntegerType(), True),
+    StructField("updated_at", TimestampType(), True)
+])
+
+# Create dimension data generator with exactly 4 rows
+dim_dataspec = (
+    dg.DataGenerator(spark, name="device_dim_data", rows=4, partitions=1)
+    .withSchema(device_dim_schema)
+    .withColumnSpec("device_type", values=["Sensor", "Actuator", "Gateway", "Controller"], random=False)
+    .withColumnSpec("power_consumption_watts", minValue=1, maxValue=50, random=True)
+    .withColumnSpec("updated_at", expr="current_timestamp()", random=False)
+)
+
+# Generate the streaming dimension data
+print("🎯 Generating 4 rows of device dimension data every minute...")
+dim_fake_df = dim_dataspec.build(
+    withStreaming=True,
+    options={
+        'rowsPerSecond': 1,  # Distribute 4 rows over 60 seconds
+    }
+)
+
+# COMMAND ----------
+
+#display(dim_fake_df)
+
+# COMMAND ----------
+
+
+
+# Define the streaming write operation with Delta table overwrite
+def write_to_delta_table(df, epoch_id):
+    """
+    Function to write each micro-batch to Delta table with complete overwrite
+    """
+    print(f"📝 Writing batch {epoch_id} to Delta table...")
+    
+    # Write with overwrite mode to replace all data
+    df.dropDuplicates(["device_type"]).write \
+        .mode("overwrite") \
+        .option("overwriteSchema", "true") \
+        .saveAsTable(DIM_TABLE_NAME)
+    
+    print(f"✅ Batch {epoch_id} written successfully at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+# Alternative approach: Direct streaming write with complete refresh
+streaming_query = (
+    dim_fake_df.writeStream
+    .format("delta")
+    .option("checkpointLocation", f"/Volumes/soni/default/checkpoints/dim_update_checkpoint/{uuid.uuid4()}")
+    .queryName("dim_device_type_updater_v2")
+    .trigger(processingTime=TRIGGER_INTERVAL)  # Every 1 minute
+    .foreachBatch(write_to_delta_table)  # Use custom write function for overwrite
+    .start()
+)
+
+
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 📚 Imports
 
@@ -200,108 +279,12 @@ display(streaming_df)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Generate Streaming Dimension Data with dbldatagen
-# MAGIC Create exactly 4 rows streaming for the dimension table using dbldatagen
-
-# COMMAND ----------
-
-# Create dimension data generator with exactly 4 rows
-dim_dataspec = (
-    dg.DataGenerator(spark, name="device_dim_data", rows=4, partitions=1)
-    .withSchema(device_dim_schema)
-    .withColumnSpec("device_type", values=["Sensor", "Actuator", "Gateway", "Controller"], random=False)
-    .withColumnSpec("power_consumption_watts", minValue=1, maxValue=50, random=True)
-    .withColumnSpec("updated_at", expr="current_timestamp()", random=False)
-)
-
-# Generate the dimension data
-print("🎯 Generating 4 rows of device dimension data...")
-dim_fake_df = dim_dataspec.build(
-        withStreaming=True,
-        options={
-            'rowsPerSecond': ROWS_PER_SECOND,
-        }
-    )
-
-# Show the generated data
-print("📊 Generated dimension data:")
-display(dim_fake_df)
-
-print("✅ Streaming dimension data generator created")
-
-# COMMAND ----------
-
-# Display the streaming dimension schema
-print("📋 Dimension Streaming Data Schema:")
-dim_fake_df.printSchema()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Write Streaming Dimension Data to Delta Table
-# MAGIC Stream the 4 rows to Delta table with 1 minute trigger
-
-# COMMAND ----------
-
-# Start streaming query to write dimension data every minute
-print(f"🚀 Starting streaming dimension data to {DIM_TABLE_NAME}")
-print(f"⏱️  Updates every 1 minute")
-print("=" * 50)
-
-try:
-    dim_update_query = (
-        minute_trigger_df.writeStream
-        .queryName("dim_device_type_updater_v2")
-        .outputMode("update")
-        .foreachBatch(process_dim_updates_proper)
-        .trigger(processingTime=f"{UPDATE_INTERVAL} seconds")  # Process every 60 seconds
-        .option("checkpointLocation", "/Volumes/soni/default/checkpoints/dim_update_checkpoint/{uuid.uuid4()}")  # Add checkpoint for reliability
-        .start()
-    )
-    
-    print(f"✅ Streaming job started successfully!")
-    print(f"📊 Stream Name: {dim_update_query.name}")
-    print(f"🆔 Stream ID: {dim_update_query.id}")
-    print(f"⚡ Status: {dim_update_query.status}")
-    
-except Exception as e:
-    print(f"❌ Failed to start streaming job: {str(e)}")
-    print("💡 If you get serialization errors, try the manual update approach below")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Manual Dimension Update (Alternative)
-# MAGIC Generate sample dimension data manually for testing
-
-# COMMAND ----------
-
-# Generate sample dimension data for preview
-sample_dim_df = dim_dataspec.build()
-
-print("📊 Sample dimension data:")
-display(sample_dim_df)
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## 📈 Monitoring & Management
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ### Check Current Dimension Table State
-
-# COMMAND ----------
-
-# Check current dimension table
-try:
-    current_dim = spark.table(DIM_TABLE_NAME)
-    print(f"📊 Current {DIM_TABLE_NAME} state:")
-    display(current_dim)
-except Exception as e:
-    print(f"❌ Table {DIM_TABLE_NAME} does not exist yet. Run the streaming update first.")
-    print(f"Error: {e}")
 
 # COMMAND ----------
 
