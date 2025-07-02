@@ -182,7 +182,7 @@ dimension_query = (
     .format("delta")
     .option("checkpointLocation", checkpoint_path)
     .queryName("dim_device_type_updater")
-    .trigger(processingTime="10 seconds")
+    .trigger(processingTime="60 seconds")
     .foreachBatch(write_dimension_batch_to_delta)
     .start()
 )
@@ -257,17 +257,7 @@ iot_streaming_df.printSchema()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### 📊 Dimension Table (Updates every 10 seconds)
-
-# COMMAND ----------
-
-# Check the dimension table
-print("📊 Current Dimension Table:")
-try:
-    spark.table("soni.default.DIM_DEVICE_TYPE").show(truncate=False)
-except:
-    print("⚠️  Dimension table not created yet - wait a few seconds for first batch")
+display(spark.read.table(config.DIM_TABLE_NAME))
 
 # COMMAND ----------
 
@@ -312,10 +302,19 @@ else:
 # COMMAND ----------
 
 # Stop all streams (uncomment when needed)
-# print("🛑 Stopping all active streams...")
-# for stream in spark.streams.active:
-#     print(f"   Stopping: {stream.name}")
-#     stream.stop()
-# print("✅ All streams stopped")
+def stop_all_active_streams():
+    print("🛑 Stopping all active streams...")
+    for stream in spark.streams.active:
+        print(f"   Stopping: {stream.name}")
+        stream.stop()
+    print("✅ All streams stopped")
+
+
+
+# COMMAND ----------
+
+#stop_all_active_streams()
+
+# COMMAND ----------
 
 
