@@ -69,6 +69,7 @@ class StreamingConfig:
     
     # Table Configuration
     DIM_TABLE_NAME = "soni.default.DIM_DEVICE_TYPE"
+    STREAM_DELTA_JOIN_TARGET_TABLE = "soni.default.STREAM_DELTA_JOIN_IOT"
     
     # Checkpoint Configuration
     CHECKPOINT_BASE_PATH = "/Volumes/soni/default/checkpoints"
@@ -173,7 +174,7 @@ def write_dimension_batch_to_delta(df, epoch_id: int):
         raise
 
 # Start the dimension streaming job
-print("🚀 Starting DIMENSION streaming job (4 rows every 10 seconds)...")
+print("🚀 Starting DIMENSION streaming job (4 rows every 60 seconds)...")
 
 checkpoint_path = f"/Volumes/soni/default/checkpoints/dim_checkpoint_{uuid.uuid4()}"
 
@@ -286,7 +287,7 @@ enriched_iot_df = (
         iot_streaming_df.device_id,
         # Dimension data columns (enrichment)
         static_dim_df.power_consumption_watts,
-        static_dim_df.updated_at.alias("dim_updated_at")
+        static_dim_df.updated_at.alias("dim_updated_at"),
         iot_streaming_df.event_timestamp,
         iot_streaming_df.temperature,
         iot_streaming_df.humidity,
@@ -342,7 +343,16 @@ display(spark.read.table(config.DIM_TABLE_NAME))
 
 # Visualize the ENRICHED streaming data (IoT + Dimension)
 print("⚡ Displaying ENRICHED IoT data with power consumption info...")
-display(enriched_iot_df)
+#display(enriched_iot_df)
+
+# COMMAND ----------
+
+( enriched_iot_df.writeStream
+  .queryName("stream_delta_join")
+  .trigger(processingTime="1 seconds")
+  .option("checkpointLocation", f"{config.CHECKPOINT_BASE_PATH}/enriched_iot_{uuid.uuid4()}")
+  .table(config.STREAM_DELTA_JOIN_TARGET_TABLE)
+)
 
 # COMMAND ----------
 
