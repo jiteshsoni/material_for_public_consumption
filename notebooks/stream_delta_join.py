@@ -251,23 +251,98 @@ iot_streaming_df.printSchema()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 🎯 Visualize the Streams
+# MAGIC ## 🔗 Stream-Static Join: IoT Data + Dimension Table
 # MAGIC
-# MAGIC **Run these cells to see the live data**
+# MAGIC **Enriching IoT streaming data with power consumption from dimension table**
+# MAGIC
+# MAGIC According to Databricks documentation, this is a stateless join that:
+# MAGIC - Joins latest version of Delta table (dimension) with streaming data (IoT)
+# MAGIC - No watermarking needed, low latency processing
+# MAGIC - Perfect for joining facts with slowly-changing dimensions
 
 # COMMAND ----------
 
+# Create the stream-static join
+print("🔗 Setting up stream-static join...")
+print("   - Streaming source: IoT data (3 rows/sec)")
+print("   - Static source: DIM_DEVICE_TYPE table (updates every 60 sec)")
+print("   - Join key: device_type")
+print("   - Result: All columns from both tables")
+
+# Read the static dimension table
+static_dim_df = spark.read.table(config.DIM_TABLE_NAME)
+
+# Perform the stream-static join
+# Join on device_type to enrich IoT data with power consumption info
+enriched_iot_df = (
+    iot_streaming_df
+    .join(
+        static_dim_df, 
+        iot_streaming_df.device_type == static_dim_df.device_type, 
+        "inner"
+    )
+    .select(
+        # IoT data columns (with iot prefix to avoid conflicts)
+        iot_streaming_df.device_id,
+        # Dimension data columns (enrichment)
+        static_dim_df.power_consumption_watts,
+        static_dim_df.updated_at.alias("dim_updated_at")
+        iot_streaming_df.event_timestamp,
+        iot_streaming_df.temperature,
+        iot_streaming_df.humidity,
+        iot_streaming_df.pressure,
+        iot_streaming_df.battery_level,
+        iot_streaming_df.device_type,
+        iot_streaming_df.error_code,
+        iot_streaming_df.signal_strength,
+        iot_streaming_df.firmware_version,
+        iot_streaming_df.location,
+    )
+)
+
+print("✅ Stream-static join configured successfully!")
+print("📊 Enriched IoT Data Schema (IoT + Dimension):")
+enriched_iot_df.printSchema()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 🎯 Visualize the Enriched Streams
+# MAGIC
+# MAGIC **Run these cells to see the live data with enrichment**
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 📊 Dimension Table (Updates every 60 seconds)
+
+# COMMAND ----------
+
+print("📊 Current Dimension Table:")
 display(spark.read.table(config.DIM_TABLE_NAME))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### 🌊 IoT Data Stream (3 rows per second)
+# MAGIC ### 🌊 Raw IoT Data Stream (3 rows per second)
 
 # COMMAND ----------
 
-# Visualize the streaming IoT data
-display(iot_streaming_df)
+# Visualize the raw streaming IoT data (before enrichment)
+#display(iot_streaming_df)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### ⚡ **ENRICHED IoT Data Stream** (IoT + Power Consumption)
+# MAGIC
+# MAGIC **This is the main result: IoT data enriched with dimension data!**
+
+# COMMAND ----------
+
+# Visualize the ENRICHED streaming data (IoT + Dimension)
+print("⚡ Displaying ENRICHED IoT data with power consumption info...")
+display(enriched_iot_df)
 
 # COMMAND ----------
 
