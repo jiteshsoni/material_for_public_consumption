@@ -65,7 +65,7 @@ class StreamingConfig:
     # Dimension Data Configuration  
     DIM_ROWS_COUNT = 4
     DIM_ROWS_PER_SECOND = 1
-    DIM_TRIGGER_INTERVAL = "10 seconds"
+    DIM_TRIGGER_INTERVAL = "60 seconds"
     
     # Table Configuration
     DIM_TABLE_NAME = "soni.default.DIM_DEVICE_TYPE"
@@ -141,7 +141,7 @@ dim_fake_df = dim_dataspec.build(
 
 # COMMAND ----------
 
-#display(dim_fake_df)
+display(dim_fake_df)
 
 # COMMAND ----------
 
@@ -251,6 +251,10 @@ iot_streaming_df.printSchema()
 
 # COMMAND ----------
 
+#display(iot_streaming_df)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 🔗 Stream-Static Join: IoT Data + Dimension Table
 # MAGIC
@@ -280,7 +284,7 @@ enriched_iot_df = (
     .join(
         static_dim_df, 
         iot_streaming_df.device_type == static_dim_df.device_type, 
-        "inner"
+        "left"
     )
     .select(
         # IoT data columns (with iot prefix to avoid conflicts)
@@ -343,7 +347,7 @@ display(spark.read.table(config.DIM_TABLE_NAME))
 
 # Visualize the ENRICHED streaming data (IoT + Dimension)
 print("⚡ Displaying ENRICHED IoT data with power consumption info...")
-#display(enriched_iot_df)
+display(enriched_iot_df)
 
 # COMMAND ----------
 
