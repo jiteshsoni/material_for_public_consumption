@@ -1,0 +1,10 @@
+pydantic==2.11.5
+pydantic-settings==2.9.1
+python-dotenv==1.1.0
+databricks-sdk==0.56.0
+psycopg2-binary==2.9.9
+fastapi==0.115.12
+uvicorn==0.34.3
+asyncpg==0.30.0
+sqlalchemy==2.0.41
+sqlmodel>=0.0.24
