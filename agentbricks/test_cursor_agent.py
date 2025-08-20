@@ -65,7 +65,7 @@ def test_missing_token():
         response = ask_agent("What is Delta Lake?")
         print(f"Response: {response}")
         
-        if "DATABRICKS_TOKEN environment variable not set" in response:
+        if "Missing required environment variables: DATABRICKS_TOKEN" in response:
             print("✅ Missing token test passed")
             return True
         else:

@@ -155,8 +155,8 @@ python show_config.py current
 # Test basic functionality
 python test_cursor_agent.py
 
-# Test error handling scenarios
-python test_error_handling.py
+# Test basic functionality
+python test_cursor_agent.py
 ```
 
 ## 📁 **File Structure**
@@ -164,13 +164,13 @@ python test_error_handling.py
 ```
 agentbricks/
 ├── agent_client.py              # Main client class (215 lines)
-├── cursor_agent_simple.py       # Simple interface wrapper (105 lines)
+├── cursor_agent_simple.py       # Simple interface wrapper (108 lines)
 ├── config.py                    # Configuration management (139 lines)
 ├── common_utils.py              # Shared utilities (178 lines)
 ├── show_config.py               # Configuration helper (81 lines)
 ├── test_cursor_agent.py         # Basic functionality tests (151 lines)
-├── test_error_handling.py       # Error scenario tests (115 lines)
 ├── requirements_agent_bricks.txt # Dependencies (3 lines)
+├── .gitignore                   # Python cache exclusion (68 lines)
 └── README.md                    # Complete documentation (393 lines)
 ```
 
@@ -270,8 +270,8 @@ config = AgentBricksConfig(
 # Test basic functionality
 python test_cursor_agent.py
 
-# Test error scenarios
-python test_error_handling.py
+# Test basic functionality
+python test_cursor_agent.py
 
 # Test configuration
 python show_config.py
