@@ -1,0 +1,9 @@
+{
+    "jupyter.interactiveWindow.cellMarker.codeRegex": "^# COMMAND ----------|^# Databricks notebook source|^(#\\s*%%|#\\s*\\<codecell\\>|#\\s*In\\[\\d*?\\]|#\\s*In\\[ \\])",
+    "jupyter.interactiveWindow.cellMarker.default": "# COMMAND ----------",
+    "python.defaultInterpreter": "./venv_312/bin/python",
+    "python.pythonPath": "./venv_312/bin/python",
+    "databricks.python.envFile": "./venv_312/bin/python",
+    "databricks.connect.serverHostname": "${env:DATABRICKS_HOST}",
+    "databricks.connect.clusterId": "${env:DATABRICKS_CLUSTER_ID}"
+}
