@@ -2,6 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 CRITICAL: Always Use Databricks Connect
+
+**IMPORTANT**: All code execution, testing, and notebook running MUST be done on remote Databricks clusters using Databricks Connect. Never run Spark/Databricks code locally.
+
+### Required Setup for All Development:
+```python
+# Use DatabricksSession for remote execution
+from databricks.connect import DatabricksSession
+spark = DatabricksSession.builder.getOrCreate()
+
+# For notebook environments, use standard SparkSession
+from pyspark.sql import SparkSession  
+spark = SparkSession.getActiveSession()
+```
+
+### Package Installation Pattern:
+```python
+# Always include restart after pip install in notebooks
+%pip install package_name
+dbutils.library.restartPython()
+```
+
 ## Repository Overview
 
 This repository contains Databricks and Spark streaming code for DLT (Delta Live Tables) auto-scaling demos and examples, focusing on production-ready streaming patterns, benchmarking tools, and agent-based integrations.
@@ -31,10 +53,11 @@ This repository contains Databricks and Spark streaming code for DLT (Delta Live
 
 ### AgentBricks Module
 ```bash
-# Install dependencies
+# IMPORTANT: All commands must be executed via Databricks Connect
+# Install dependencies and test on remote cluster
 cd agentbricks && pip install -r requirements_agent_bricks.txt
 
-# Test functionality
+# Test functionality on Databricks cluster via Databricks Connect
 python test_cursor_agent.py
 
 # Check configuration
@@ -46,30 +69,35 @@ python show_config.py current
 
 ### Lakebase Module  
 ```bash
-# Install dependencies
+# IMPORTANT: All commands must be executed via Databricks Connect
+# Install dependencies and run on remote cluster
 cd lakebase && pip install -r requirements.txt
 
-# Run basic benchmark
+# Run basic benchmark on Databricks cluster
 python lakebase_benchmark.py
 
-# Run enhanced benchmark with monitoring
+# Run enhanced benchmark with monitoring on cluster
 python enhanced_production_pool.py
 
-# Start FastAPI monitoring dashboard
+# Start FastAPI monitoring dashboard on cluster
 python fastapi_monitoring.py
 # Access dashboard at http://localhost:8000/dashboard
 
-# Development testing (from lakebase README)
+# Development testing on cluster (when available)
 python -m pytest tests/
 python -m flake8 *.py
 python -m mypy *.py
 ```
 
 ### Notebooks
-Notebooks are primarily .py files designed to run in Databricks environments. Most require:
-- Spark session initialization
-- Delta Lake libraries
-- Databricks runtime environment
+**CRITICAL**: All notebooks MUST be executed on Databricks clusters, never locally.
+
+Notebooks are primarily .py/.ipynb files designed to run in Databricks environments. Most require:
+- Databricks Connect for remote execution
+- Spark session initialization via `SparkSession.getActiveSession()`
+- Delta Lake libraries (built into Databricks runtime)
+- Databricks runtime environment (DBR 13.3+ recommended)
+- Proper package installation pattern with `dbutils.library.restartPython()`
 
 ## Configuration Management
 
@@ -131,17 +159,26 @@ Both modules use layered configuration:
 
 ## Testing Strategy
 
+**MANDATORY**: All testing MUST be performed on Databricks clusters via Databricks Connect. Local testing is not supported for Spark/Databricks code.
+
 ### AgentBricks
-- Functional tests with real API calls (when token available)
-- Configuration validation tests
-- Error handling and retry logic tests
-- Network connectivity tests
+- Functional tests with real API calls (when token available) - **Execute via Databricks Connect**
+- Configuration validation tests - **Execute on cluster**
+- Error handling and retry logic tests - **Execute on cluster**
+- Network connectivity tests - **Execute on cluster**
 
 ### Lakebase  
-- Performance benchmarking with multiple thread counts
-- Connection pool stress testing
-- Health monitoring validation
-- FastAPI endpoint testing
+- Performance benchmarking with multiple thread counts - **Execute on Databricks cluster**
+- Connection pool stress testing - **Execute on cluster**
+- Health monitoring validation - **Execute on cluster**
+- FastAPI endpoint testing - **Execute on cluster**
+
+### Notebook Testing
+- **ALWAYS** upload notebooks to Databricks workspace for testing
+- **NEVER** run notebooks locally - use cluster execution only
+- Use `%pip install package_name` followed by `dbutils.library.restartPython()`
+- Validate VARIANT column functionality on actual cluster
+- Test streaming queries with proper checkpointing on DBFS
 
 ## Performance Tuning
 
