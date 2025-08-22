@@ -183,14 +183,28 @@ Both modules use layered configuration:
 ### Critical Streaming Testing Pattern
 **IMPORTANT**: For infinite streaming jobs, use this testing methodology:
 
-1. **Use `.trigger(once=True)` for initial data processing**:
+1. **Handle Spark Connect session expiration**:
+   ```python
+   def ensure_spark_session():
+       """Ensure we have a valid Spark session, recreate if expired"""
+       global spark
+       try:
+           spark.range(1).count()  # Test session
+           return spark
+       except Exception as e:
+           print(f"⚠️  Spark session expired: {e}")
+           spark = DatabricksSession.builder.getOrCreate()
+           return spark
+   ```
+
+2. **Use `.trigger(once=True)` for initial data processing**:
    ```python
    # Process available data once and stop
    query = streaming_df.writeStream.trigger(once=True).start()
    query.awaitTermination()  # Wait for completion
    ```
 
-2. **Add programmatic streaming query management**:
+3. **Add programmatic streaming query management**:
    ```python
    # Start streaming with proper management
    query = streaming_df.writeStream.trigger(processingTime="30 seconds").start()
@@ -206,10 +220,11 @@ Both modules use layered configuration:
    # Now run validation tests on the populated table
    ```
 
-3. **Never place test code after infinite streaming**:
+4. **Never place test code after infinite streaming**:
    - Infinite streaming blocks execution forever
    - Test cases placed after `.trigger(processingTime=...)` will never execute
    - Always stop streaming queries before validation tests
+   - Handle session expiration errors gracefully with reconnection
 
 ## Performance Tuning
 
