@@ -180,6 +180,37 @@ Both modules use layered configuration:
 - Validate VARIANT column functionality on actual cluster
 - Test streaming queries with proper checkpointing on DBFS
 
+### Critical Streaming Testing Pattern
+**IMPORTANT**: For infinite streaming jobs, use this testing methodology:
+
+1. **Use `.trigger(once=True)` for initial data processing**:
+   ```python
+   # Process available data once and stop
+   query = streaming_df.writeStream.trigger(once=True).start()
+   query.awaitTermination()  # Wait for completion
+   ```
+
+2. **Add programmatic streaming query management**:
+   ```python
+   # Start streaming with proper management
+   query = streaming_df.writeStream.trigger(processingTime="30 seconds").start()
+   
+   # Allow streaming to run for testing period
+   import time
+   time.sleep(60)  # Let it process for 1 minute
+   
+   # Stop streaming programmatically before running tests
+   if query.isActive:
+       query.stop()
+   
+   # Now run validation tests on the populated table
+   ```
+
+3. **Never place test code after infinite streaming**:
+   - Infinite streaming blocks execution forever
+   - Test cases placed after `.trigger(processingTime=...)` will never execute
+   - Always stop streaming queries before validation tests
+
 ## Performance Tuning
 
 ### Connection Pool Sizing
