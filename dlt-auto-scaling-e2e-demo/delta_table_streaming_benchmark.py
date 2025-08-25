@@ -424,28 +424,7 @@ def check_stream_status():
     
     return active_baseline
 
-def analyze_data():
-    """Analyze data in Delta tables"""
-    print("📊 Data Analysis:")
-    
-    try:
-        # Get all tables
-        tables_df = spark.sql(f"SHOW TABLES IN {config['catalog_name']}.{config['database_name']}")
-        tables = [row['tableName'] for row in tables_df.collect() if config['table_prefix'] in row['tableName']]
-        
-        total_rows = 0
-        for table in tables[:5]:  # Show first 5
-            count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{table}").collect()[0]['count']
-            total_rows += count
-            print(f"   {table}: {count:,} rows")
-        
-        if len(tables) > 5:
-            print(f"   ... and {len(tables)-5} more tables")
-        
-        print(f"   Total rows (first 5 tables): {total_rows:,}")
-        
-    except Exception as e:
-        print(f"❌ Error analyzing data: {e}")
+
 
 def test_scaling_logic():
     """Test the scaling timing logic without actually starting streams"""
@@ -482,15 +461,9 @@ def test_scaling_logic():
 print("💡 Available functions:")
 print("   stop_all_streams() - Stop all running streams")  
 print("   check_stream_status() - Check which streams are active")
-print("   analyze_data() - Show row counts in Delta tables")
 print("   test_scaling_logic() - Test timing logic without starting streams")
 
 # COMMAND ----------
 
 # Quick status check
 check_stream_status()
-
-# COMMAND ----------
-
-# Quick data analysis
-analyze_data()
