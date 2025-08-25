@@ -33,9 +33,10 @@ config = {
     "baseline_rate": 1000,  # rows per second per stream
     "scale_3x_rate": 3000,  # 3x scaling rate
     "scale_9x_rate": 9000,  # 9x scaling rate
-    "database_name": "dlt_autoscaling",
+    "catalog_name": "soni",
+    "database_name": "default",
     "table_prefix": "stream_table",
-    "checkpoint_path": "/tmp/dlt_checkpoints/",
+    "checkpoint_path": "/Volumes/soni/default/checkpoints/",
     "partitions": 8,
     "test_mode": False  # Set to True for quick testing (reduces streams/time)
 }
@@ -53,6 +54,9 @@ print(f"   📊 Baseline: {config['baseline_streams']} streams at {config['basel
 print(f"   📈 Total baseline: {config['baseline_streams'] * config['baseline_rate']:,} rows/sec")
 print(f"   🔄 3x scaling: +{config['scale_3x_rate']} rows/sec (minutes 3-6)")
 print(f"   🚀 9x scaling: +{config['scale_9x_rate']} rows/sec (minutes 6-10)")
+print(f"   📁 Catalog: {config['catalog_name']}")
+print(f"   🗄️ Database: {config['database_name']}")
+print(f"   💾 Checkpoint: {config['checkpoint_path']}")
 
 # COMMAND ----------
 
@@ -116,9 +120,10 @@ except ImportError:
     import dbldatagen as dg
     print("✅ dbldatagen installed")
 
-# Create database
-spark.sql(f"CREATE DATABASE IF NOT EXISTS {config['database_name']}")
-print(f"✅ Database '{config['database_name']}' ready")
+# Create catalog and database
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {config['catalog_name']}")
+spark.sql(f"CREATE DATABASE IF NOT EXISTS {config['catalog_name']}.{config['database_name']}")
+print(f"✅ Catalog '{config['catalog_name']}' and Database '{config['database_name']}' ready")
 
 # COMMAND ----------
 
@@ -171,7 +176,7 @@ demo_start_time = time.time()
 # Start all baseline streams
 for i in range(1, config['baseline_streams'] + 1):
     stream_df = create_stream(i, config['baseline_rate'], "baseline")
-    table_name = f"{config['database_name']}.{config['table_prefix']}_{i:03d}"
+    table_name = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_{i:03d}"
     checkpoint = f"{config['checkpoint_path']}baseline_{i:03d}/"
     
     query = (
@@ -242,7 +247,7 @@ while True:
         print("🔄 Starting 3x scaling stream...")
         try:
             scale_3x_df = create_stream(999, config['scale_3x_rate'], "3x")
-            scale_3x_table = f"{config['database_name']}.{config['table_prefix']}_3x_scale"
+            scale_3x_table = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_3x_scale"
             scale_3x_checkpoint = f"{config['checkpoint_path']}scale_3x/"
             
             scale_3x_query = (
@@ -267,7 +272,7 @@ while True:
         print("🚀 Starting 9x scaling stream...")
         try:
             scale_9x_df = create_stream(998, config['scale_9x_rate'], "9x")
-            scale_9x_table = f"{config['database_name']}.{config['table_prefix']}_9x_scale"
+            scale_9x_table = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_9x_scale"
             scale_9x_checkpoint = f"{config['checkpoint_path']}scale_9x/"
             
             scale_9x_query = (
@@ -340,16 +345,16 @@ print(f"   9x scaling stream: {'Active' if final_9x else 'Stopped'}")
 # Query data in tables
 try:
     # Check baseline table
-    baseline_count = spark.sql(f"SELECT COUNT(*) as count FROM {config['database_name']}.{config['table_prefix']}_001").collect()[0]['count']
+    baseline_count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_001").collect()[0]['count']
     print(f"\n📋 Data Results:")
     print(f"   Baseline table 001: {baseline_count:,} rows")
     
     # Check scaling tables if they exist
-    tables_df = spark.sql(f"SHOW TABLES IN {config['database_name']}")
+    tables_df = spark.sql(f"SHOW TABLES IN {config['catalog_name']}.{config['database_name']}")
     scaling_tables = [row['tableName'] for row in tables_df.collect() if 'scale' in row['tableName']]
     
     for table in scaling_tables:
-        count = spark.sql(f"SELECT COUNT(*) as count FROM {config['database_name']}.{table}").collect()[0]['count']
+        count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{table}").collect()[0]['count']
         print(f"   {table}: {count:,} rows")
         
 except Exception as e:
@@ -425,12 +430,12 @@ def analyze_data():
     
     try:
         # Get all tables
-        tables_df = spark.sql(f"SHOW TABLES IN {config['database_name']}")
+        tables_df = spark.sql(f"SHOW TABLES IN {config['catalog_name']}.{config['database_name']}")
         tables = [row['tableName'] for row in tables_df.collect() if config['table_prefix'] in row['tableName']]
         
         total_rows = 0
         for table in tables[:5]:  # Show first 5
-            count = spark.sql(f"SELECT COUNT(*) as count FROM {config['database_name']}.{table}").collect()[0]['count']
+            count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{table}").collect()[0]['count']
             total_rows += count
             print(f"   {table}: {count:,} rows")
         
