@@ -47,7 +47,7 @@ config = {
     "checkpoint_path": "/Volumes/soni/default/checkpoints/",
     "partitions": 8,
     "test_mode": False,  # Set to True for quick testing (reduces streams/time)
-    "demo_duration_minutes": 180  # Total demo duration in minutes (3 hours)
+    "demo_duration_minutes": 120  # Total demo duration in minutes (2 hours)
 }
 
 # Generate timestamp for unique checkpoint path
