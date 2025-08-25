@@ -1,0 +1,20 @@
+# Delta Table Streaming Benchmark Dependencies
+# Core dependencies
+pyspark>=3.4.0
+delta-spark>=2.4.0
+dbldatagen>=4.1.0
+
+# Optional: For Databricks Connect (if running remotely)
+# databricks-connect>=13.0.0
+
+# Development and testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Monitoring and utilities
+psutil>=5.9.0
+tabulate>=0.9.0
+
+# For local development (if not using Databricks Connect)
+# These are optional and may conflict with Databricks Connect
+# pyspark-local>=3.4.0
