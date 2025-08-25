@@ -16,6 +16,14 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install dbldatagen
+
+# COMMAND ----------
+
+# MAGIC dbutils.library.restartPython()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 🎛️ Configuration
 
@@ -65,34 +73,10 @@ print(f"   💾 Checkpoint: {config['checkpoint_path']}")
 
 # COMMAND ----------
 
-def create_spark_session():
-    """Create Spark session - supports both Databricks Connect and direct cluster execution"""
-    try:
-        # Try Databricks Connect first
-        from databricks.connect import DatabricksSession
-        spark = DatabricksSession.builder.remote().getOrCreate()
-        print("✅ Connected via Databricks Connect")
-        return spark
-    except ImportError:
-        # Fall back to regular Spark session (for direct cluster execution)
-        try:
-            spark = SparkSession.getActiveSession()
-            if spark is None:
-                print("❌ No active Spark session found")
-                print("💡 This code must run on a Databricks cluster with an active session")
-                print("📋 To test:")
-                print("   1. Upload this .py file to Databricks workspace")
-                print("   2. Attach to a running cluster") 
-                print("   3. Run each cell individually")
-                raise Exception("No active Spark session - Databricks cluster required")
-            print("✅ Connected to Databricks Spark cluster")
-            return spark
-        except Exception as e:
-            print(f"❌ Failed to create Spark session: {e}")
-            raise
-
-# Get Databricks Spark session
-spark = create_spark_session()
+# Get existing Spark session (already available on Databricks cluster)
+spark = SparkSession.getActiveSession()
+if spark is None:
+    raise Exception("No active Spark session found. Please ensure this notebook is attached to a running cluster.")
 print(f"🔗 Spark Version: {spark.version}")
 
 # Verify Delta Lake support
@@ -103,22 +87,9 @@ except Exception as e:
     print(f"❌ Spark SQL issue: {e}")
     raise
 
-# Install dbldatagen if needed
-try:
-    import dbldatagen as dg
-    print("✅ dbldatagen available")
-except ImportError:
-    print("📦 Installing dbldatagen...")
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "dbldatagen"])
-    # Only restart Python in Databricks environment
-    try:
-        dbutils.library.restartPython()
-    except NameError:
-        print("ℹ️  Restart Python manually in Databricks after pip install")
-    import dbldatagen as dg
-    print("✅ dbldatagen installed")
+# Import dbldatagen (already installed via %pip)
+import dbldatagen as dg
+print("✅ dbldatagen available")
 
 # Create catalog and database
 spark.sql(f"CREATE CATALOG IF NOT EXISTS {config['catalog_name']}")
