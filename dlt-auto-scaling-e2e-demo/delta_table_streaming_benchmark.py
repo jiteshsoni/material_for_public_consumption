@@ -46,8 +46,13 @@ config = {
     "table_prefix": "stream_table",
     "checkpoint_path": "/Volumes/soni/default/checkpoints/",
     "partitions": 8,
-    "test_mode": False  # Set to True for quick testing (reduces streams/time)
+    "test_mode": False,  # Set to True for quick testing (reduces streams/time)
+    "demo_duration_minutes": 180  # Total demo duration in minutes (3 hours)
 }
+
+# Generate timestamp for unique checkpoint path
+timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+config["checkpoint_path"] = f"/Volumes/soni/default/checkpoints/{timestamp_str}/"
 
 # Test mode adjustments for quick testing
 if config["test_mode"]:
@@ -55,7 +60,8 @@ if config["test_mode"]:
     config["baseline_rate"] = 100   # Reduce rate for testing
     config["scale_3x_rate"] = 300
     config["scale_9x_rate"] = 900
-    print("⚠️  TEST MODE: Using reduced streams and rates for testing")
+    config["demo_duration_minutes"] = 15  # Reduce duration for testing
+    print("⚠️  TEST MODE: Using reduced streams, rates, and duration for testing")
 
 print("🚀 DLT Auto-Scaling Configuration:")
 print(f"   📊 Baseline: {config['baseline_streams']} streams at {config['baseline_rate']} rows/sec each")
@@ -65,6 +71,8 @@ print(f"   🚀 9x scaling: +{config['scale_9x_rate']} rows/sec (minutes 6-10)")
 print(f"   📁 Catalog: {config['catalog_name']}")
 print(f"   🗄️ Database: {config['database_name']}")
 print(f"   💾 Checkpoint: {config['checkpoint_path']}")
+print(f"   ⏰ Demo Duration: {config['demo_duration_minutes']} minutes ({config['demo_duration_minutes']/60:.1f} hours)")
+print(f"   🕐 Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # COMMAND ----------
 
@@ -187,6 +195,7 @@ print("   0-3 min: Baseline only")
 print("   3-6 min: Baseline + 3x stream")
 print("   6-10 min: Baseline + 3x stream + 9x stream")
 print("   10+ min: Baseline only")
+print(f"   {config['demo_duration_minutes']} min: Demo ends")
 print("="*60)
 
 # Tracking variables
@@ -283,9 +292,9 @@ while True:
         except Exception as e:
             print(f"❌ Failed to stop 9x stream: {e}")
     
-    # Exit condition: 15 minutes or manual stop
-    if elapsed_minutes >= 15:
-        print("🏁 Demo completed after 15 minutes")
+    # Exit condition: configurable duration or manual stop
+    if elapsed_minutes >= config['demo_duration_minutes']:
+        print(f"🏁 Demo completed after {config['demo_duration_minutes']} minutes ({config['demo_duration_minutes']/60:.1f} hours)")
         break
     
     # Wait 30 seconds before next check
