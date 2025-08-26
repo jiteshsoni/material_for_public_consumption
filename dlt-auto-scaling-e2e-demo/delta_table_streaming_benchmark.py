@@ -391,4 +391,4 @@ print("   test_scaling_logic() - Test timing logic without starting streams")
 # COMMAND ----------
 
 # Quick status check
-check_stream_status()
+stop_all_streams()
