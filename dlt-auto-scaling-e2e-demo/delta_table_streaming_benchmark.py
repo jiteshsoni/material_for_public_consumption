@@ -190,26 +190,22 @@ print(f"⏰ Demo started at: {datetime.fromtimestamp(demo_start_time).strftime('
 # COMMAND ----------
 
 print("⏰ Starting time-based scaling monitoring...")
-print("📋 Scaling schedule:")
-print("   0-3 min: Baseline only")
-print("   3-6 min: Baseline + 3x stream")
-print("   6-10 min: Baseline + 3x stream + 9x stream")
-print("   10+ min: Baseline only")
+print("📋 Scaling schedule (repeats every 10 minutes):")
+print("   0-3 min: Baseline only (50 streams)")
+print("   3-6 min: Baseline + 3x stream (51 streams)")
+print("   6-10 min: Baseline + 3x stream + 9x stream (52 streams)")
 print(f"   {config['demo_duration_minutes']} min: Demo ends")
 print("="*60)
 
 # Tracking variables
 scale_3x_query = None
 scale_9x_query = None
-scale_3x_started = False
-scale_9x_started = False
-scale_3x_stopped = False
-scale_9x_stopped = False
 
 # Main monitoring loop
 while True:
     current_time = time.time()
     elapsed_minutes = (current_time - demo_start_time) / 60
+    cycle_minutes = elapsed_minutes % 10  # 0-9.9 minutes per cycle
     
     # Check active streams
     active_baseline = sum(1 for q in baseline_queries if q.isActive)
@@ -220,10 +216,10 @@ while True:
                        active_3x * config['scale_3x_rate'] + 
                        active_9x * config['scale_9x_rate'])
     
-    print(f"⏰ {elapsed_minutes:.1f} min | Baseline: {active_baseline} | 3x: {active_3x} | 9x: {active_9x} | Total: {total_throughput:,} rows/sec")
+    print(f"⏰ {elapsed_minutes:.1f} min (cycle: {cycle_minutes:.1f}) | Baseline: {active_baseline} | 3x: {active_3x} | 9x: {active_9x} | Total: {total_throughput:,} rows/sec")
     
-    # 3-6 minutes: Start 3x scaling stream (writes to stream_table_001)
-    if elapsed_minutes >= 3 and elapsed_minutes < 6 and not scale_3x_started:
+    # Start 3x stream at 3 minutes
+    if cycle_minutes >= 3 and not scale_3x_query:
         print("🔄 Starting 3x scaling stream...")
         try:
             scale_3x_df = create_stream(999, config['scale_3x_rate'], "3x")
@@ -240,15 +236,12 @@ while True:
                 .queryName("scale_3x_stream")
                 .toTable(scale_3x_table)
             )
-            
-            scale_3x_started = True
-            print(f"✅ 3x scaling stream started → {scale_3x_table} (parallel to baseline)")
-            
+            print(f"✅ 3x scaling stream started → {scale_3x_table}")
         except Exception as e:
             print(f"❌ Failed to start 3x stream: {e}")
     
-    # 6-10 minutes: Start 9x scaling stream (writes to stream_table_002)
-    if elapsed_minutes >= 6 and elapsed_minutes < 10 and not scale_9x_started:
+    # Start 9x stream at 6 minutes
+    if cycle_minutes >= 6 and not scale_9x_query:
         print("🚀 Starting 9x scaling stream...")
         try:
             scale_9x_df = create_stream(998, config['scale_9x_rate'], "9x")
@@ -265,86 +258,38 @@ while True:
                 .queryName("scale_9x_stream")
                 .toTable(scale_9x_table)
             )
-            
-            scale_9x_started = True
-            print(f"✅ 9x scaling stream started → {scale_9x_table} (parallel to baseline)")
-            
+            print(f"✅ 9x scaling stream started → {scale_9x_table}")
         except Exception as e:
             print(f"❌ Failed to start 9x stream: {e}")
     
-    # 6+ minutes: Stop 3x scaling stream
-    if elapsed_minutes >= 6 and scale_3x_query and scale_3x_query.isActive and not scale_3x_stopped:
-        print("⏹️ Stopping 3x scaling stream...")
-        try:
-            scale_3x_query.stop()
-            scale_3x_stopped = True
-            print("✅ 3x scaling stream stopped")
-        except Exception as e:
-            print(f"❌ Failed to stop 3x stream: {e}")
+    # Stop both scaling streams at 10 minutes (cycle reset)
+    if cycle_minutes < 1 and (scale_3x_query or scale_9x_query):
+        print("⏹️ Stopping scaling streams (cycle reset)...")
+        
+        if scale_3x_query and scale_3x_query.isActive:
+            try:
+                scale_3x_query.stop()
+                scale_3x_query = None
+                print("✅ 3x scaling stream stopped")
+            except Exception as e:
+                print(f"❌ Failed to stop 3x stream: {e}")
+        
+        if scale_9x_query and scale_9x_query.isActive:
+            try:
+                scale_9x_query.stop()
+                scale_9x_query = None
+                print("✅ 9x scaling stream stopped")
+            except Exception as e:
+                print(f"❌ Failed to stop 9x stream: {e}")
     
-    # 10+ minutes: Stop 9x scaling stream
-    if elapsed_minutes >= 10 and scale_9x_query and scale_9x_query.isActive and not scale_9x_stopped:
-        print("⏹️ Stopping 9x scaling stream...")
-        try:
-            scale_9x_query.stop()
-            scale_9x_stopped = True
-            print("✅ 9x scaling stream stopped")
-        except Exception as e:
-            print(f"❌ Failed to stop 9x stream: {e}")
-    
-    # Exit condition: configurable duration or manual stop
+    # Exit condition
     if elapsed_minutes >= config['demo_duration_minutes']:
         print(f"🏁 Demo completed after {config['demo_duration_minutes']} minutes ({config['demo_duration_minutes']/60:.1f} hours)")
         break
     
-    # Wait 30 seconds before next check
     time.sleep(30)
 
 print("\n🎉 DLT Auto-Scaling Demo Complete!")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 📊 Final Results Analysis
-
-# COMMAND ----------
-
-print("📊 Final Results Analysis")
-print("="*50)
-
-# Check final stream status
-final_baseline = sum(1 for q in baseline_queries if q.isActive)
-final_3x = 1 if scale_3x_query and scale_3x_query.isActive else 0
-final_9x = 1 if scale_9x_query and scale_9x_query.isActive else 0
-
-print(f"🔍 Final Stream Status:")
-print(f"   Baseline streams: {final_baseline}/{config['baseline_streams']} active")
-print(f"   3x scaling stream: {'Active' if final_3x else 'Stopped'}")
-print(f"   9x scaling stream: {'Active' if final_9x else 'Stopped'}")
-
-# Query data in tables
-try:
-    # Check baseline table 001 (has both baseline + 3x scaling data)
-    baseline_count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_001").collect()[0]['count']
-    print(f"\n📋 Data Results:")
-    print(f"   Table 001 (baseline + 3x scaling): {baseline_count:,} rows")
-    
-    # Check baseline table 002 (has both baseline + 9x scaling data)
-    baseline_count_002 = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_002").collect()[0]['count']
-    print(f"   Table 002 (baseline + 9x scaling): {baseline_count_002:,} rows")
-    
-    # Check a regular baseline table (003) for comparison
-    baseline_count_003 = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_003").collect()[0]['count']
-    print(f"   Table 003 (baseline only): {baseline_count_003:,} rows")
-        
-except Exception as e:
-    print(f"⚠️ Error checking table data: {e}")
-
-print(f"\n🎯 Expected Behavior Achieved:")
-print(f"   ✅ Started with {config['baseline_streams']} baseline streams")
-print(f"   ✅ Added 3x stream at 3 minutes")
-print(f"   ✅ Added 9x stream at 6 minutes") 
-print(f"   ✅ Stopped scaling streams at appropriate times")
 
 # COMMAND ----------
 
@@ -418,7 +363,7 @@ def test_scaling_logic():
         elapsed_minutes = (current_time - demo_start) / 60
         
         # Simulate the scaling logic
-        should_start_3x = elapsed_minutes >= 3 and elapsed_minutes < 6
+        should_start_3x = elapsed_minutes >= 3 and elapsed_minutes < 10
         should_start_9x = elapsed_minutes >= 6 and elapsed_minutes < 10
         should_stop_3x = elapsed_minutes >= 6
         should_stop_9x = elapsed_minutes >= 10
