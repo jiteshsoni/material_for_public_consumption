@@ -5,14 +5,14 @@
 # MAGIC ## 📋 Simple Scaling Pattern:
 # MAGIC - **50 baseline streams**: 1000 rows/sec each (constant)
 # MAGIC - **3-6 minutes**: Add 1 stream at 3000 rows/sec (3x rate)
-# MAGIC - **6-10 minutes**: Add 1 stream at 9000 rows/sec (9x rate) 
+# MAGIC - **6-10 minutes**: Keep 3x stream + Add 1 stream at 9000 rows/sec (9x rate) 
 # MAGIC - **After 10 minutes**: Back to baseline only
 # MAGIC 
 # MAGIC ## 🎯 Expected Behavior:
-# MAGIC - **0-3 min**: 50,000 rows/sec total
-# MAGIC - **3-6 min**: 53,000 rows/sec total (+3000)
-# MAGIC - **6-10 min**: 62,000 rows/sec total (+9000)
-# MAGIC - **10+ min**: 50,000 rows/sec total (back to baseline)
+# MAGIC - **0-3 min**: 50,000 rows/sec total (50 baseline streams)
+# MAGIC - **3-6 min**: 53,000 rows/sec total (50 baseline + 1 3x stream)
+# MAGIC - **6-10 min**: 52,000 rows/sec total (50 baseline + 1 3x stream + 1 9x stream)
+# MAGIC - **10+ min**: 50,000 rows/sec total (back to baseline only)
 
 # COMMAND ----------
 
