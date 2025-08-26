@@ -222,12 +222,12 @@ while True:
     
     print(f"⏰ {elapsed_minutes:.1f} min | Baseline: {active_baseline} | 3x: {active_3x} | 9x: {active_9x} | Total: {total_throughput:,} rows/sec")
     
-    # 3-6 minutes: Start 3x scaling stream
+    # 3-6 minutes: Start 3x scaling stream (writes to stream_table_001)
     if elapsed_minutes >= 3 and elapsed_minutes < 6 and not scale_3x_started:
         print("🔄 Starting 3x scaling stream...")
         try:
             scale_3x_df = create_stream(999, config['scale_3x_rate'], "3x")
-            scale_3x_table = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_3x_scale"
+            scale_3x_table = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_001"
             scale_3x_checkpoint = f"{config['checkpoint_path']}scale_3x/"
             
             scale_3x_query = (
@@ -242,17 +242,17 @@ while True:
             )
             
             scale_3x_started = True
-            print(f"✅ 3x scaling stream started → {scale_3x_table}")
+            print(f"✅ 3x scaling stream started → {scale_3x_table} (parallel to baseline)")
             
         except Exception as e:
             print(f"❌ Failed to start 3x stream: {e}")
     
-    # 6-10 minutes: Start 9x scaling stream  
+    # 6-10 minutes: Start 9x scaling stream (writes to stream_table_002)
     if elapsed_minutes >= 6 and elapsed_minutes < 10 and not scale_9x_started:
         print("🚀 Starting 9x scaling stream...")
         try:
             scale_9x_df = create_stream(998, config['scale_9x_rate'], "9x")
-            scale_9x_table = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_9x_scale"
+            scale_9x_table = f"{config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_002"
             scale_9x_checkpoint = f"{config['checkpoint_path']}scale_9x/"
             
             scale_9x_query = (
@@ -267,7 +267,7 @@ while True:
             )
             
             scale_9x_started = True
-            print(f"✅ 9x scaling stream started → {scale_9x_table}")
+            print(f"✅ 9x scaling stream started → {scale_9x_table} (parallel to baseline)")
             
         except Exception as e:
             print(f"❌ Failed to start 9x stream: {e}")
@@ -324,18 +324,18 @@ print(f"   9x scaling stream: {'Active' if final_9x else 'Stopped'}")
 
 # Query data in tables
 try:
-    # Check baseline table
+    # Check baseline table 001 (has both baseline + 3x scaling data)
     baseline_count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_001").collect()[0]['count']
     print(f"\n📋 Data Results:")
-    print(f"   Baseline table 001: {baseline_count:,} rows")
+    print(f"   Table 001 (baseline + 3x scaling): {baseline_count:,} rows")
     
-    # Check scaling tables if they exist
-    tables_df = spark.sql(f"SHOW TABLES IN {config['catalog_name']}.{config['database_name']}")
-    scaling_tables = [row['tableName'] for row in tables_df.collect() if 'scale' in row['tableName']]
+    # Check baseline table 002 (has both baseline + 9x scaling data)
+    baseline_count_002 = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_002").collect()[0]['count']
+    print(f"   Table 002 (baseline + 9x scaling): {baseline_count_002:,} rows")
     
-    for table in scaling_tables:
-        count = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{table}").collect()[0]['count']
-        print(f"   {table}: {count:,} rows")
+    # Check a regular baseline table (003) for comparison
+    baseline_count_003 = spark.sql(f"SELECT COUNT(*) as count FROM {config['catalog_name']}.{config['database_name']}.{config['table_prefix']}_003").collect()[0]['count']
+    print(f"   Table 003 (baseline only): {baseline_count_003:,} rows")
         
 except Exception as e:
     print(f"⚠️ Error checking table data: {e}")
